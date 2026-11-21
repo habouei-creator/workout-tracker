@@ -4,6 +4,7 @@ import {
   phaseForDate,
   phaseLabel,
   phaseCue,
+  deloadTarget,
   formatShort,
   formatLong,
   formatMonthDay,
@@ -331,9 +332,12 @@ function train(state) {
         <div class="row mt8"><h1>${esc(active.dayName)}</h1></div>
         <div class="sub">${esc(active.phaseName)} · in progress · <span id="elapsed">${esc(formatElapsed(Date.now() - new Date(active.startedAt).getTime()))}</span></div>
         <div class="row mt12"><span class="pill">${active.exercises.length} exercises</span><span class="pill">~${mins} min</span></div>
-        <section class="card pad-tight">${active.exercises.map((ex, i) => {
+        <section class="card pad-tight" data-reorder="workout">${active.exercises.map((ex, i) => {
           const done = completedCount(ex);
-          return `<button class="ex" data-action="open-ex" data-i="${i}"><div><b>${ex.slot ? `<span class="tag">${esc(ex.slot)}</span>` : ""}${esc(ex.name)}</b><span class="s">${done} of ${ex.sets.length} sets · ${esc(targetLine(ex))}</span></div><span class="last ${done === ex.sets.length ? "acc" : "muted"}">${done === ex.sets.length ? "Done" : "Open"}</span></button>`;
+          return `<div class="exrow" data-index="${i}">
+            ${orderControls("workout", active.dayId, i, active.exercises.length)}
+            <button class="ex grow" data-action="open-ex" data-i="${i}"><div><b>${esc(ex.name)}</b><span class="s">${done} of ${ex.sets.length} sets · ${esc(targetLine(ex))}</span></div><span class="last ${done === ex.sets.length ? "acc" : "muted"}">${done === ex.sets.length ? "Done" : "Open"}</span></button>
+          </div>`;
         }).join("")}</section>
         ${noteCards(state, active.dayId)}
         <button class="btn ghost" data-action="ask-finish">Finish workout</button>`,
@@ -373,7 +377,7 @@ function train(state) {
         <span class="pill">RIR ${esc(resolved.phase.rir)}</span>
       </div>
       ${sameDone ? doneBanner(sameDone) : ""}
-      <section class="card pad-tight">${exercises.map((ex) => exercisePreview(state, scheduled, ex)).join("")}</section>
+      <section class="card pad-tight" data-reorder="plan">${exercises.map((ex, i) => `<div class="exrow" data-index="${i}">${orderControls("plan", scheduled, i, exercises.length)}${exercisePreview(state, scheduled, ex)}</div>`).join("")}</section>
       ${noteCards(state, scheduled)}
       ${stepsCard(state)}
       <button class="link mt12" data-action="pick-day">Not this workout?</button>`,
@@ -381,14 +385,47 @@ function train(state) {
   };
 }
 
+function logSuggestion(state, w, ex) {
+  const last = lastPerformance(state.workouts.filter((item) => item.id !== w.id), ex.name);
+  const line = suggestionLine(state, w.dayId, ex, last);
+  return line ? `<div class="sub">${line}</div>` : "";
+}
+
+function orderControls(source, dayId, i, count) {
+  return `<button class="handle" type="button" data-drag="${source}" data-id="${esc(dayId || "")}" aria-label="Drag to reorder">≡</button>
+    <div class="nudges">
+      <button type="button" data-action="nudge" data-source="${source}" data-id="${esc(dayId || "")}" data-i="${i}" data-dir="-1" aria-label="Move up" ${i === 0 ? "disabled" : ""}>Up</button>
+      <button type="button" data-action="nudge" data-source="${source}" data-id="${esc(dayId || "")}" data-i="${i}" data-dir="1" aria-label="Move down" ${i === count - 1 ? "disabled" : ""}>Down</button>
+    </div>`;
+}
+
+function suggestionLine(state, dayId, ex, last) {
+  const phase = phaseForDate(state.plan, state.today).phase;
+  if (phase.setMod === "half") {
+    const kg = last?.sets?.length ? last.sets[last.sets.length - 1].kg : null;
+    const tip = deloadTarget(kg, ex.loadType || last?.exercise?.loadType);
+    return `<span class="s amber">${esc(tip.text)}</span>`;
+  }
+  const advice = adviceForExercise(state.workouts, dayId, ex.name);
+  if (!advice) return "";
+  return `<span class="s ${advice.type === "hold" ? "amber" : "acc"}">${esc(advice.text)}</span>`;
+}
+
 function exercisePreview(state, dayId, ex) {
   const last = lastPerformance(state.workouts, ex.name);
-  const advice = adviceForExercise(state.workouts, dayId, ex.name);
-  const suggested = advice && advice.type === "up" && advice.kg != null ? advice.kg : last && last.best && last.best.kg != null && last.best.kg !== "" ? Number(last.best.kg) : null;
+  const phase = phaseForDate(state.plan, state.today).phase;
+  const advice = phase.setMod === "half" ? null : adviceForExercise(state.workouts, dayId, ex.name);
+  const suggested = phase.setMod === "half"
+    ? deloadTarget(last?.sets?.length ? last.sets[last.sets.length - 1].kg : null, ex.loadType || last?.exercise?.loadType).kg
+    : advice && advice.type === "up" && advice.kg != null
+      ? advice.kg
+      : last && last.best && last.best.kg != null && last.best.kg !== ""
+        ? Number(last.best.kg)
+        : null;
   const line = targetLine(ex, suggested);
   const lastTxt = last ? `Last ${fmtSet(last.best.kg, last.best.reps, last.exercise.loadType)}` : "No history";
-  const adviceLine = advice ? `<span class="s ${advice.type === "hold" ? "amber" : "acc"}">${esc(advice.text)}</span>` : "";
-  return `<div class="ex"><div>${ex.slot ? `<span class="tag">${esc(ex.slot)}</span>` : ""}<b>${esc(ex.name)}</b><span class="s">${esc(line)}</span>${adviceLine}</div><span class="last ${last ? "acc" : "dim"}">${esc(lastTxt)}</span></div>`;
+  const adviceLine = suggestionLine(state, dayId, ex, last);
+  return `<div class="ex grow"><div><b>${esc(ex.name)}</b><span class="s">${esc(line)}</span>${adviceLine}</div><span class="last ${last ? "acc" : "dim"}">${esc(lastTxt)}</span></div>`;
 }
 
 function noteCards(state, dayId) {
@@ -435,7 +472,6 @@ function log(state) {
   const i = Math.max(0, Math.min(w.logIndex || 0, w.exercises.length - 1));
   const ex = w.exercises[i];
   const open = firstOpenSet(ex);
-  const advice = adviceForExercise(state.workouts.filter((x) => x.id !== w.id), w.dayId, ex.name);
   const rows = ex.sets
     .map((s, si) => {
       const active = si === open;
@@ -466,9 +502,13 @@ function log(state) {
         <button class="back" data-action="back-today">‹ ${esc(w.dayName)} · ${i + 1} of ${w.exercises.length}</button>
         <span class="pill" id="elapsed">${esc(formatElapsed(Date.now() - new Date(w.startedAt).getTime()))}</span>
       </div>
-      <h1 style="margin-top:10px">${ex.slot ? `<span class="tag">${esc(ex.slot)}</span>` : ""}${esc(ex.name)}</h1>
+      <h1 style="margin-top:10px">${esc(ex.name)}</h1>
       <div class="sub">Target ${esc(targetLine(ex))}</div>
-      ${advice ? `<div class="sub ${advice.type === "hold" ? "amber" : "acc"}">${esc(advice.text)}</div>` : ""}
+      ${logSuggestion(state, w, ex)}
+      <div class="row mt8">
+        <button class="pill" type="button" data-action="nudge" data-source="workout" data-id="${esc(w.dayId)}" data-i="${i}" data-dir="-1" ${i === 0 ? "disabled" : ""}>Move up</button>
+        <button class="pill" type="button" data-action="nudge" data-source="workout" data-id="${esc(w.dayId)}" data-i="${i}" data-dir="1" ${i === w.exercises.length - 1 ? "disabled" : ""}>Move down</button>
+      </div>
       <section class="card">
         <div class="sethead"><span>Set</span><span>Previous</span><span style="text-align:center">Kg</span><span style="text-align:center">Reps</span><span></span></div>
         ${rows}
@@ -840,7 +880,7 @@ function planEditor(state) {
           <div class="field"><label>Start</label><input data-bind="phase|${i}|start" value="${esc(p.start)}"></div>
           <div class="field"><label>End</label><input data-bind="phase|${i}|end" value="${esc(p.end)}"></div>
         </div>
-        <div class="field"><label>Sets</label><select data-bind="phase|${i}|setMod">${SET_MODS.map((m) => `<option value="${m.id}" ${p.setMod === m.id ? "selected" : ""}>${esc(m.label)}</option>`).join("")}</select></div>
+        <div class="field"><label>Sets</label><select data-bind="phase|${i}|setMod">${SET_MODS.map((m) => `<option value="${m.id}" ${(p.setMod === "half" ? "half" : "as-written") === m.id ? "selected" : ""}>${esc(m.label)}</option>`).join("")}</select></div>
         <div class="field"><label>RIR</label><input data-bind="phase|${i}|rir" value="${esc(p.rir)}"></div>
         <div class="field"><label>Conditioning note</label><input data-bind="phase|${i}|conditioning" value="${esc(p.conditioning || "")}"></div>
         ${phases.length > 1 ? `<button class="btn ghost" data-action="delete-phase" data-i="${i}">Delete phase</button>` : ""}
@@ -863,10 +903,10 @@ function planDay(state) {
     <button class="back" data-action="open-plan">‹ Plan</button>
     <div class="field"><label>Name</label><input data-bind="day|${esc(day.id)}|name" value="${esc(day.name)}"></div>
     <div class="field"><label>Focus</label><input data-bind="day|${esc(day.id)}|focus" value="${esc(day.focus || "")}"></div>
-    <p class="sub">A and B moves get extra sets in Push and Peak. Give two exercises the same letter to make a superset.</p>
+    <p class="sub">Order is shared by every ${esc(day.name)} day. Drag the handle or use the arrows. Previous weights stay with the exercise.</p>
     ${(day.exercises || [])
-      .map((ex, i) => `<section class="card">
-        <div class="field"><label>Exercise ${i + 1}</label><input data-bind="ex|${esc(day.id)}|${i}|name" value="${esc(ex.name)}"></div>
+      .map((ex, i) => `<section class="card" data-index="${i}" data-reorder="plan-edit">
+        <div class="row"><div class="field grow" style="margin-top:0"><label>Exercise ${i + 1}</label><input data-bind="ex|${esc(day.id)}|${i}|name" value="${esc(ex.name)}"></div>${orderControls("plan", day.id, i, day.exercises.length)}</div>
         <div class="inline-2">
           <div class="field"><label>Sets</label><input inputmode="numeric" data-bind="ex|${esc(day.id)}|${i}|sets" value="${esc(String(ex.sets))}"></div>
           <div class="field"><label>Letter</label><input data-bind="ex|${esc(day.id)}|${i}|superset" value="${esc(ex.superset || "")}" maxlength="1"></div>
@@ -876,8 +916,6 @@ function planDay(state) {
           <div class="field"><label>Reps max</label><input inputmode="numeric" data-bind="ex|${esc(day.id)}|${i}|repsMax" value="${esc(String(ex.repsMax))}"></div>
         </div>
         <div class="row mt8">
-          <button class="link" data-action="move-ex" data-id="${esc(day.id)}" data-i="${i}" data-dir="-1">Up</button>
-          <button class="link" data-action="move-ex" data-id="${esc(day.id)}" data-i="${i}" data-dir="1">Down</button>
           <button class="link amber" data-action="delete-ex" data-id="${esc(day.id)}" data-i="${i}">Delete</button>
         </div>
       </section>`)

@@ -39,7 +39,9 @@ Monday and Thursday use the same Push list. Tuesday and Friday use the same Pull
 
 Every week is Monday to Sunday. Week 1 starts Monday 2 Nov 2026. The six workout dots are Monday through Saturday. Sunday is rest, and that is when the weekly check-in covers the full Monday-to-Sunday window. The weight change compares this calendar week with the previous one. The 7-day average weight stays a rolling average.
 
-Each exercise is written as 3 sets. In the Push phase the first exercise (letter A) gets one extra set. In Peak the first two (A and B) get one extra set. Deload cuts every exercise to about half the sets. Rep ranges sit around the reps he has been logging. Core and crunch are 20-25. Squat (Machine) is 8-12.
+Every exercise is 3 sets. Push and Peak do not add a set. In the deload week the sets stay at 3, and the suggestion is to use about 10% less weight (about 10% more assistance on Core 3X Set). He can still add or remove a set by hand while logging. Rep ranges sit around the reps he has been logging. Core and crunch are 20-25. Squat (Machine) is 8-12.
+
+On Train and in the plan editor, each exercise has up and down buttons and a drag handle. The order is saved on that day type, so the next Push, Pull, or Legs day uses it. Previous weights stay matched to the exercise name.
 
 Chest Press (Band) is added load, shown as `+6 kg x 12`. Core 3X Set is assistance, shown as `-5 kg x 25`. Hitting the top of the rep range on the assisted lift suggests 2.5 kg less assistance. A miss two times in a row suggests a little more assistance.
 
@@ -157,7 +159,7 @@ Do not rename the keys. Numbers are plain numbers, dates are `YYYY-MM-DD`, and t
 }
 ```
 
-`set_mod` is one of `as-written`, `plus-a`, `plus-ab`, or `half`.
+`set_mod` `half` marks a deload phase: still 3 sets, with a suggestion to use about 10% less weight. Any other value keeps the normal 3 sets. Older values `plus-a` and `plus-ab` no longer add sets.
 
 ### Example food day
 

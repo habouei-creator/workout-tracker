@@ -108,6 +108,104 @@ function toast(message) {
   }, 1700);
 }
 
+function sameOrder(a, b) {
+  return a.length === b.length && a.every((item, i) => item === b[i]);
+}
+
+function syncPlanFromNames(dayId, names) {
+  const day = state.plan.days.find((item) => item.id === dayId);
+  if (!day) return;
+  const pool = [...day.exercises];
+  const next = [];
+  for (const name of names) {
+    const index = pool.findIndex((item) => item.name === name);
+    if (index >= 0) next.push(pool.splice(index, 1)[0]);
+  }
+  day.exercises = next.concat(pool);
+}
+
+function syncWorkoutFromPlan(dayId) {
+  const w = activeWorkout();
+  const day = state.plan.days.find((item) => item.id === dayId);
+  if (!w || w.dayId !== dayId || !day) return;
+  const current = w.exercises[w.logIndex || 0];
+  const pool = [...w.exercises];
+  const ordered = [];
+  for (const planned of day.exercises) {
+    const index = pool.findIndex((item) => item.name === planned.name || item.exerciseId === planned.id);
+    if (index >= 0) ordered.push(pool.splice(index, 1)[0]);
+  }
+  w.exercises = ordered.concat(pool);
+  if (current) {
+    const index = w.exercises.indexOf(current);
+    if (index >= 0) w.logIndex = index;
+  }
+}
+
+function nudgeExercise(source, dayId, from, steps) {
+  if (!steps) return;
+  if (source === "workout") {
+    const w = activeWorkout();
+    if (!w || w.dayId !== dayId) return;
+    const next = L.moveInList(w.exercises, from, steps);
+    if (sameOrder(next, w.exercises)) return;
+    const current = w.exercises[w.logIndex || 0];
+    w.exercises = next;
+    if (current) {
+      const index = w.exercises.indexOf(current);
+      if (index >= 0) w.logIndex = index;
+    }
+    syncPlanFromNames(dayId, w.exercises.map((item) => item.name));
+  } else {
+    const day = state.plan.days.find((item) => item.id === dayId);
+    if (!day) return;
+    const next = L.moveInList(day.exercises, from, steps);
+    if (sameOrder(next, day.exercises)) return;
+    day.exercises = next;
+    syncWorkoutFromPlan(dayId);
+  }
+  state.forceScrollTop = false;
+  persist();
+  render();
+}
+
+function bindDrag() {
+  let drag = null;
+  document.body.addEventListener("pointerdown", (event) => {
+    const handle = event.target.closest("[data-drag]");
+    if (!handle) return;
+    const row = handle.closest("[data-index]");
+    if (!row) return;
+    drag = {
+      source: handle.dataset.drag,
+      dayId: handle.dataset.id,
+      from: Number(row.dataset.index),
+      startY: event.clientY,
+      row,
+      dy: 0,
+    };
+    row.classList.add("dragging");
+    event.preventDefault();
+  });
+  document.body.addEventListener("pointermove", (event) => {
+    if (!drag) return;
+    drag.dy = event.clientY - drag.startY;
+    drag.row.style.transform = `translateY(${drag.dy}px)`;
+  });
+  const finishDrag = () => {
+    if (!drag) return;
+    const height = drag.row.getBoundingClientRect().height || 64;
+    const steps = Math.round(drag.dy / height);
+    drag.row.classList.remove("dragging");
+    drag.row.style.transform = "";
+    const info = drag;
+    drag = null;
+    if (steps) nudgeExercise(info.source, info.dayId, info.from, steps);
+  };
+  document.body.addEventListener("pointerup", finishDrag);
+  document.body.addEventListener("pointercancel", finishDrag);
+}
+
 function recomputePRs() {
   const done = state.workouts
     .filter((w) => w.status === "done")
@@ -910,6 +1008,10 @@ function handle(action, el) {
     render();
     return;
   }
+  if (action === "nudge") {
+    nudgeExercise(el.dataset.source, el.dataset.id, Number(el.dataset.i), Number(el.dataset.dir));
+    return;
+  }
   if (action === "move-ex") {
     const day = state.plan.days.find((d) => d.id === el.dataset.id);
     if (!day) return;
@@ -1030,6 +1132,7 @@ async function init() {
   document.body.addEventListener("input", onInput);
   document.body.addEventListener("change", onInput);
   document.body.addEventListener("keydown", onKey);
+  bindDrag();
   bindPull();
   window.addEventListener("online", () => {
     state.online = true;

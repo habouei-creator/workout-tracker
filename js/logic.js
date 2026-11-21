@@ -164,12 +164,9 @@ export function isBannedExercise(name) {
 export const BAN_REASON =
   "That movement is off the list because of your shoulder. No overhead pressing, dips, or barbell bench.";
 
-export function prescribedSets(sets, superset, setMod) {
-  let n = Number(sets) || 1;
-  if (setMod === "plus-a" && superset === "A") n += 1;
-  if (setMod === "plus-ab" && (superset === "A" || superset === "B")) n += 1;
-  if (setMod === "half") n = Math.max(1, Math.round(n / 2));
-  return n;
+export function prescribedSets(sets) {
+  const n = Number(sets);
+  return Number.isFinite(n) && n > 0 ? n : 3;
 }
 
 export function phaseForDate(plan, iso) {
@@ -213,10 +210,36 @@ export function phaseCue(phase) {
   let effort = `Stop each set with about ${rir} reps in reserve.`;
   if (rir === "1") effort = "Stop each set with about 1 rep in reserve.";
   if (rir === "0-1") effort = "Stop with 0 or 1 rep in reserve.";
-  if (phase.setMod === "plus-a") return `Add 1 set on A moves. ${effort}`;
-  if (phase.setMod === "plus-ab") return `Add 1 set on A and B moves. ${effort}`;
-  if (phase.setMod === "half") return `Deload week. Sets are cut about in half. ${effort}`;
-  return `Sets as written. ${effort}`;
+  if (phase.setMod === "half") return `Deload week. Keep 3 sets and use about 10% less weight. ${effort}`;
+  return `3 sets. ${effort}`;
+}
+
+export function roundHalf(n) {
+  return Math.round(Number(n) * 2) / 2;
+}
+
+export function deloadTarget(kg, loadType) {
+  const n = Number(kg);
+  if (!Number.isFinite(n) || n === 0) {
+    return { kg: null, text: "Deload: use about 10% less weight than usual." };
+  }
+  if (loadType === "assisted" || n < 0) {
+    const more = roundHalf(Math.abs(n) * 1.1);
+    return { kg: -more, text: `Deload: try ${fmtLoad(-more)} kg, about 10% more assistance.` };
+  }
+  const lighter = roundHalf(Math.abs(n) * 0.9);
+  const shown = loadType === "added" ? `+${fmtLoad(lighter)} kg` : `${fmtLoad(lighter)} kg`;
+  return { kg: lighter, text: `Deload: try ${shown}, about 10% lighter.` };
+}
+
+export function moveInList(list, from, steps) {
+  const next = list.slice();
+  if (from < 0 || from >= next.length || !steps) return next;
+  const to = Math.max(0, Math.min(next.length - 1, from + steps));
+  if (to === from) return next;
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
 }
 
 export function withSlots(exercises) {
@@ -250,7 +273,7 @@ export function resolveDay(plan, dayId, iso, overrides = []) {
   if (!day) return null;
   const { phase, status } = phaseForDate(plan, iso);
   const exercises = day.exercises.map((ex) => {
-    let sets = prescribedSets(ex.sets, ex.superset, phase.setMod);
+    let sets = prescribedSets(ex.sets);
     let repsMin = ex.repsMin;
     let repsMax = ex.repsMax;
     let name = ex.name;

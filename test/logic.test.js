@@ -28,6 +28,8 @@ import {
   weekDots,
   fmtSet,
   mergeHistorySeed,
+  deloadTarget,
+  moveInList,
 } from "../js/logic.js";
 import { readFileSync } from "node:fs";
 import { buildCheckin } from "../js/render.js";
@@ -74,7 +76,7 @@ test("schedule is the PPL split", () => {
 test("push phase adds a set only on A moves", () => {
   const day = resolveDay(plan, "legs", "2026-11-21", []);
   assert.equal(day.exercises[0].name, "Squat (Machine)");
-  assert.equal(day.exercises[0].sets, 4);
+  assert.equal(day.exercises[0].sets, 3);
   assert.equal(day.exercises[1].name, "Goblet Squat (Kettlebell)");
   assert.equal(day.exercises[1].sets, 3);
   assert.equal(day.exercises[0].slot, null);
@@ -83,18 +85,23 @@ test("push phase adds a set only on A moves", () => {
   assert.equal(day.exercises.find((e) => e.name === "Preacher Curl (Machine)"), undefined);
 });
 
-test("deload halves sets", () => {
-  assert.equal(prescribedSets(3, "A", "half"), 2);
-  assert.equal(prescribedSets(2, "D", "half"), 1);
+test("deload keeps 3 sets and suggests a lighter load", () => {
+  assert.equal(prescribedSets(3), 3);
   const day = resolveDay(plan, "push", "2026-12-02", []);
   assert.equal(day.phase.name, "Deload");
-  assert.equal(day.exercises[0].sets, 2);
+  assert.equal(day.phase.setMod, "half");
+  assert.ok(day.exercises.every((ex) => ex.sets === 3));
+  const tip = deloadTarget(59, null);
+  assert.match(tip.text, /10% lighter/);
+  assert.equal(tip.kg, 53);
+  assert.equal(deloadTarget(6, "added").kg, 5.5);
+  assert.match(deloadTarget(-5, "assisted").text, /more assistance/);
 });
 
 test("peak adds a set on A and B", () => {
   const day = resolveDay(plan, "push", "2026-12-10", []);
-  assert.equal(day.exercises[0].sets, 4);
-  assert.equal(day.exercises[1].sets, 4);
+  assert.equal(day.exercises[0].sets, 3);
+  assert.equal(day.exercises[1].sets, 3);
   assert.equal(day.exercises[2].sets, 3);
   assert.equal(day.exercises[0].rir, "0-1");
 });
@@ -210,7 +217,7 @@ test("create and finish a workout flags a PR on the second session", () => {
   const done1 = finishWorkout(first, []);
   assert.equal(done1.prs.length, 0);
   const second = createWorkout(plan, [done1], "legs", "2026-11-21", []);
-  assert.equal(second.exercises[0].targetSets, 4);
+  assert.equal(second.exercises[0].targetSets, 3);
   assert.equal(second.exercises[0].sets[0].kg, 100);
   assert.equal(second.exercises[0].sets[0].prevReps, 12);
   second.exercises[0].sets.forEach((s) => {
@@ -360,6 +367,13 @@ test("Strong history seed merges once and leaves other workouts", () => {
   assert.equal(day.exercises[0].name, "Squat (Machine)");
   assert.equal(day.exercises[0].repsMin, 8);
   assert.equal(day.exercises[0].repsMax, 12);
+});
+
+test("reorder keeps the exercises and can move one to the front", () => {
+  const names = ["Lat Pulldown (Cable)", "Seated Row (Cable)", "Hammer Curl (Cable)"];
+  const moved = moveInList(names, 2, -2);
+  assert.deepEqual(moved, ["Hammer Curl (Cable)", "Lat Pulldown (Cable)", "Seated Row (Cable)"]);
+  assert.deepEqual(names, ["Lat Pulldown (Cable)", "Seated Row (Cable)", "Hammer Curl (Cable)"]);
 });
 
 test("Sunday check-in covers Monday through Sunday", () => {

@@ -25,7 +25,7 @@ export const SEED_PLAN = {
       name: "Push",
       start: "2026-11-16",
       end: "2026-11-29",
-      setMod: "plus-a",
+      setMod: "as-written",
       rir: "1",
       conditioning: "Bike intervals twice and incline walks twice. Skip intervals on leg day if your legs are cooked.",
     },
@@ -43,7 +43,7 @@ export const SEED_PLAN = {
       name: "Peak",
       start: "2026-12-07",
       end: "2026-12-27",
-      setMod: "plus-ab",
+      setMod: "as-written",
       rir: "0-1",
       conditioning: "Bike intervals 3 times and one easy walk.",
     },
@@ -163,8 +163,6 @@ export const WEEKDAYS = [
 ];
 
 export const SET_MODS = [
-  { id: "as-written", label: "As written" },
-  { id: "plus-a", label: "Plus 1 set on A moves" },
-  { id: "plus-ab", label: "Plus 1 set on A and B moves" },
-  { id: "half", label: "Half the sets (rounded)" },
+  { id: "as-written", label: "3 sets" },
+  { id: "half", label: "Deload, 3 sets, about 10% lighter" },
 ];
