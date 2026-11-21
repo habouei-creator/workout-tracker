@@ -26,19 +26,22 @@ import {
   trailingAverage,
   weekWeightDelta,
   weekDots,
+  fmtSet,
+  mergeHistorySeed,
 } from "../js/logic.js";
+import { readFileSync } from "node:fs";
 import { buildCheckin } from "../js/render.js";
 
 const plan = freshPlan();
 
-test("Nov 21 2026 is Push phase week 3 and Legs B", () => {
+test("Nov 21 2026 is Push phase week 3 and Legs", () => {
   const iso = "2026-11-21";
   const { phase, status } = phaseForDate(plan, iso);
   assert.equal(phase.name, "Push");
   assert.equal(status, "in");
   assert.equal(weekOfBlock(plan, iso).week, 3);
   assert.equal(phaseLabel(plan, iso), "Push phase · week 3 of 8");
-  assert.equal(scheduledDayId(plan, iso), "legs-b");
+  assert.equal(scheduledDayId(plan, iso), "legs");
 });
 
 test("phase boundaries", () => {
@@ -59,60 +62,57 @@ test("phase boundaries", () => {
 });
 
 test("schedule is the PPL split", () => {
-  assert.equal(scheduledDayId(plan, "2026-11-02"), "push-a");
-  assert.equal(scheduledDayId(plan, "2026-11-03"), "pull-a");
-  assert.equal(scheduledDayId(plan, "2026-11-04"), "legs-a");
-  assert.equal(scheduledDayId(plan, "2026-11-05"), "push-b");
-  assert.equal(scheduledDayId(plan, "2026-11-06"), "pull-b");
-  assert.equal(scheduledDayId(plan, "2026-11-07"), "legs-b");
+  assert.equal(scheduledDayId(plan, "2026-11-02"), "push");
+  assert.equal(scheduledDayId(plan, "2026-11-03"), "pull");
+  assert.equal(scheduledDayId(plan, "2026-11-04"), "legs");
+  assert.equal(scheduledDayId(plan, "2026-11-05"), "push");
+  assert.equal(scheduledDayId(plan, "2026-11-06"), "pull");
+  assert.equal(scheduledDayId(plan, "2026-11-07"), "legs");
   assert.equal(scheduledDayId(plan, "2026-11-08"), null);
 });
 
 test("push phase adds a set only on A moves", () => {
-  const day = resolveDay(plan, "legs-b", "2026-11-21", []);
-  const press = day.exercises.find((e) => e.id === "leg-press");
-  const thrust = day.exercises.find((e) => e.id === "hip-thrust");
-  const curl = day.exercises.find((e) => e.name === "Lying leg curl");
-  assert.equal(press.sets, 4);
-  assert.equal(thrust.sets, 3);
-  assert.equal(curl.sets, 3);
-  assert.equal(press.slot, null);
-  assert.equal(day.exercises.find((e) => e.name === "Leg extension").slot, "C1");
-  assert.equal(curl.slot, "C2");
-  assert.equal(day.exercises.find((e) => e.name === "Lying leg curl").slot, "C2");
-  assert.equal(press.rir, "1");
+  const day = resolveDay(plan, "legs", "2026-11-21", []);
+  assert.equal(day.exercises[0].name, "Squat (Machine)");
+  assert.equal(day.exercises[0].sets, 4);
+  assert.equal(day.exercises[1].name, "Goblet Squat (Kettlebell)");
+  assert.equal(day.exercises[1].sets, 3);
+  assert.equal(day.exercises[0].slot, null);
+  assert.equal(day.exercises[1].slot, null);
+  assert.equal(day.exercises[0].rir, "1");
+  assert.equal(day.exercises.find((e) => e.name === "Preacher Curl (Machine)"), undefined);
 });
 
 test("deload halves sets", () => {
   assert.equal(prescribedSets(3, "A", "half"), 2);
   assert.equal(prescribedSets(2, "D", "half"), 1);
-  const day = resolveDay(plan, "push-a", "2026-12-02", []);
+  const day = resolveDay(plan, "push", "2026-12-02", []);
   assert.equal(day.phase.name, "Deload");
   assert.equal(day.exercises[0].sets, 2);
 });
 
 test("peak adds a set on A and B", () => {
-  const day = resolveDay(plan, "push-a", "2026-12-10", []);
+  const day = resolveDay(plan, "push", "2026-12-10", []);
   assert.equal(day.exercises[0].sets, 4);
-  assert.equal(day.exercises[2].sets, 4);
-  assert.equal(day.exercises[4].sets, 3);
+  assert.equal(day.exercises[1].sets, 4);
+  assert.equal(day.exercises[2].sets, 3);
   assert.equal(day.exercises[0].rir, "0-1");
 });
 
 test("coach override replaces sets after the phase rule", () => {
-  const day = resolveDay(plan, "legs-b", "2026-11-21", [
+  const day = resolveDay(plan, "legs", "2026-11-21", [
     {
-      day: "Legs B",
-      exercise: "Leg press",
+      day: "Legs",
+      exercise: "Squat (Machine)",
       sets: 5,
       rir: "2",
       applies_from: "2026-11-16",
       applies_to: "2026-11-29",
     },
   ]);
-  const press = day.exercises.find((e) => e.name === "Leg press");
-  assert.equal(press.sets, 5);
-  assert.equal(press.rir, "2");
+  const squat = day.exercises.find((e) => e.name === "Squat (Machine)");
+  assert.equal(squat.sets, 5);
+  assert.equal(squat.rir, "2");
 });
 
 test("banned swap names", () => {
@@ -201,7 +201,7 @@ test("e1rm epley", () => {
 });
 
 test("create and finish a workout flags a PR on the second session", () => {
-  const first = createWorkout(plan, [], "legs-b", "2026-11-14", []);
+  const first = createWorkout(plan, [], "legs", "2026-11-14", []);
   first.exercises[0].sets.forEach((s) => {
     s.kg = 100;
     s.reps = 12;
@@ -209,7 +209,7 @@ test("create and finish a workout flags a PR on the second session", () => {
   });
   const done1 = finishWorkout(first, []);
   assert.equal(done1.prs.length, 0);
-  const second = createWorkout(plan, [done1], "legs-b", "2026-11-21", []);
+  const second = createWorkout(plan, [done1], "legs", "2026-11-21", []);
   assert.equal(second.exercises[0].targetSets, 4);
   assert.equal(second.exercises[0].sets[0].kg, 100);
   assert.equal(second.exercises[0].sets[0].prevReps, 12);
@@ -220,8 +220,8 @@ test("create and finish a workout flags a PR on the second session", () => {
   });
   const done2 = finishWorkout(second, [done1]);
   assert.equal(done2.prs.length, 1);
-  assert.equal(done2.prs[0].name, "Leg press");
-  const up = done2.advice.find((a) => a.name === "Leg press");
+  assert.equal(done2.prs[0].name, "Squat (Machine)");
+  const up = done2.advice.find((a) => a.name === "Squat (Machine)");
   assert.equal(up.type, "up");
   assert.equal(up.kg, 112.5);
 });
@@ -282,7 +282,7 @@ test("monday of the block is week 1 not week 0", () => {
 });
 
 test("every week is Monday to Sunday with Sunday rest", () => {
-  const ids = ["push-a", "pull-a", "legs-a", "push-b", "pull-b", "legs-b", null];
+  const ids = ["push", "pull", "legs", "push", "pull", "legs", null];
   for (const monday of ["2026-11-02", "2026-11-16", "2026-11-23", "2026-12-07"]) {
     ids.forEach((id, i) => {
       const date = addDays(monday, i);
@@ -325,6 +325,41 @@ test("every week is Monday to Sunday with Sunday rest", () => {
   assert.ok(Math.abs(weekWeightDelta(weighins, "2026-11-22") - (94.5 - 96)) < 0.001);
   assert.ok(Math.abs(weekWeightDelta(weighins, "2026-11-23") - (90 - 94.5)) < 0.001);
   assert.ok(Math.abs(trailingAverage(weighins, "2026-11-23", 7) - 92) < 0.001);
+});
+
+test("added and assisted loads format and progress differently", () => {
+  assert.equal(fmtSet(6, 12, "added"), "+6 kg x 12");
+  assert.equal(fmtSet(-5, 25, "assisted"), "-5 kg x 25");
+  assert.equal(fmtSet(35, 12), "35 x 12");
+  const assisted = { hitTop: true, miss: false, minWeight: -5, loadType: "assisted" };
+  assert.equal(progressionAdvice([assisted]).kg, -2.5);
+  assert.match(progressionAdvice([assisted]).text, /less assistance/);
+  const added = { hitTop: true, miss: false, minWeight: 6, loadType: "added" };
+  assert.equal(progressionAdvice([added]).kg, 8.5);
+  assert.match(progressionAdvice([added]).text, /\+8\.5 kg/);
+});
+
+test("Strong history seed merges once and leaves other workouts", () => {
+  const coach = JSON.parse(readFileSync(new URL("../data/coach.json", import.meta.url), "utf8"));
+  const own = { id: "houman-own", status: "done", dayId: "push", exercises: [] };
+  const first = mergeHistorySeed([own], coach.history_seed, [], plan);
+  assert.equal(first.added.length, 3);
+  assert.equal(first.workouts[0].id, "houman-own");
+  const push = first.workouts.find((w) => w.id === "strong-push-2026-11-17");
+  assert.equal(push.exercises[1].name, "Preacher Curl (Machine)");
+  assert.equal(push.exercises.some((e) => e.name === "Machine chest press"), false);
+  assert.equal(fmtSet(push.exercises[4].sets[0].kg, push.exercises[4].sets[0].reps, "added"), "+6 kg x 12");
+  assert.equal(fmtSet(push.exercises[6].sets[0].kg, push.exercises[6].sets[0].reps, "assisted"), "-5 kg x 25");
+  const legs = first.workouts.find((w) => w.id === "strong-legs-2026-11-19");
+  assert.equal(legs.exercises.some((e) => e.name === "Squat (Machine)"), false);
+  assert.equal(legs.exercises[0].name, "Goblet Squat (Kettlebell)");
+  const again = mergeHistorySeed(first.workouts, coach.history_seed, first.appliedIds, plan);
+  assert.equal(again.added.length, 0);
+  assert.equal(again.workouts.length, first.workouts.length);
+  const day = resolveDay(plan, "legs", "2026-11-21", []);
+  assert.equal(day.exercises[0].name, "Squat (Machine)");
+  assert.equal(day.exercises[0].repsMin, 8);
+  assert.equal(day.exercises[0].repsMax, 12);
 });
 
 test("Sunday check-in covers Monday through Sunday", () => {

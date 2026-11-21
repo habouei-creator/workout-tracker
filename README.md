@@ -27,17 +27,21 @@ The seeded plan is the 8-week block from 2 Nov 2026 through 27 Dec 2026.
 
 | Day | Workout |
 | --- | --- |
-| Monday | Push A |
-| Tuesday | Pull A |
-| Wednesday | Legs A |
-| Thursday | Push B |
-| Friday | Pull B |
-| Saturday | Legs B |
+| Monday | Push |
+| Tuesday | Pull |
+| Wednesday | Legs |
+| Thursday | Push |
+| Friday | Pull |
+| Saturday | Legs |
 | Sunday | Rest, plus an easy long walk |
+
+Monday and Thursday use the same Push list. Tuesday and Friday use the same Pull list. Wednesday and Saturday use the same Legs list. The exercises are the ones Houman logs in Strong, in that order, straight sets. Legs starts with Squat (Machine), which has no Strong history yet.
 
 Every week is Monday to Sunday. Week 1 starts Monday 2 Nov 2026. The six workout dots are Monday through Saturday. Sunday is rest, and that is when the weekly check-in covers the full Monday-to-Sunday window. The weight change compares this calendar week with the previous one. The 7-day average weight stays a rolling average.
 
-Supersets are the A1/A2 pairs from the plan. Two exercises that share a letter are a pair. A letter used once is a straight set.
+Each exercise is written as 3 sets. In the Push phase the first exercise (letter A) gets one extra set. In Peak the first two (A and B) get one extra set. Deload cuts every exercise to about half the sets. Rep ranges sit around the reps he has been logging. Core and crunch are 20-25. Squat (Machine) is 8-12.
+
+Chest Press (Band) is added load, shown as `+6 kg x 12`. Core 3X Set is assistance, shown as `-5 kg x 25`. Hitting the top of the rep range on the assisted lift suggests 2.5 kg less assistance. A miss two times in a row suggests a little more assistance.
 
 | Phase | Dates | Sets | Effort |
 | --- | --- | --- | --- |
@@ -83,7 +87,8 @@ Do not rename the keys. Numbers are plain numbers, dates are `YYYY-MM-DD`, and t
   "food_days": [],
   "notes": [],
   "exercise_overrides": [],
-  "plan_changes": []
+  "plan_changes": [],
+  "history_seed": []
 }
 ```
 
@@ -99,12 +104,12 @@ Do not rename the keys. Numbers are plain numbers, dates are `YYYY-MM-DD`, and t
 }
 ```
 
-`exercise_overrides` change one exercise for a date range. They replace the phase math for the fields you set, so `sets: 5` means five sets, not five plus the phase bonus. `day` can be the id (`legs-b`) or the name (`Legs B`). `exercise` can be the id (`leg-press`) or the name (`Leg press`). `replace_with` renames the movement. Overhead pressing, dips, and barbell bench are ignored.
+`exercise_overrides` change one exercise for a date range. They replace the phase math for the fields you set, so `sets: 5` means five sets, not five plus the phase bonus. `day` can be the id (`legs`) or the name (`Legs`). `exercise` can be the id (`squat-machine`) or the name (`Squat (Machine)`). `replace_with` renames the movement. Overhead pressing, dips, and barbell bench are ignored.
 
 ```json
 {
-  "day": "Legs B",
-  "exercise": "Leg press",
+  "day": "Legs",
+  "exercise": "Squat (Machine)",
   "sets": 5,
   "reps_min": 8,
   "reps_max": 10,
@@ -114,6 +119,24 @@ Do not rename the keys. Numbers are plain numbers, dates are `YYYY-MM-DD`, and t
   "applies_to": "2026-11-29"
 }
 ```
+
+`history_seed` is how Strong history gets onto the phone. Each object is one finished session with a stable `id`. The app inserts it only when that id is not already stored and not in `appliedHistorySeedIds` on the phone. Reloading does not add a second copy. Deleting the imported session keeps the id in that list, so it does not come back. Other workouts Houman logs are left alone. Updating the plan from seed version 2 replaces the exercise list on phones that still have the old plan. It does not delete logged workouts.
+
+```json
+{
+  "id": "strong-push-2026-11-17",
+  "date": "2026-11-17",
+  "day_id": "push",
+  "day_name": "Push",
+  "exercises": [
+    { "name": "Shrug (Dumbbell)", "sets": [[30, 15], [35, 12], [35, 12]] },
+    { "name": "Chest Press (Band)", "load_type": "added", "sets": [[6, 12], [6, 12], [6, 12]] },
+    { "name": "Core 3X Set", "load_type": "assisted", "sets": [[-5, 25], [-4, 25], [-4, 25]] }
+  ]
+}
+```
+
+`load_type` is `added` or `assisted`. Omit it for a normal load. The shipped file has Push on 17 Nov, Pull on 18 Nov, and Legs on 19 Nov 2026. Squat (Machine) is not in that import.
 
 `plan_changes` are notes, plus optional new phases. A phase is added once, matched by name and start date, and is not removed if you later delete it from the file.
 

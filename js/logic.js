@@ -117,10 +117,20 @@ export function e1rm(kg, reps) {
   return w * (1 + r / 30);
 }
 
-export function fmtSet(kg, reps) {
+export function fmtSet(kg, reps, loadType) {
   if (reps == null || reps === "") return "";
-  if (!Number(kg)) return `BW x ${reps}`;
-  return `${fmtLoad(kg)} x ${reps}`;
+  const n = Number(kg);
+  if (loadType === "added") return `+${fmtLoad(Math.abs(n))} kg x ${reps}`;
+  if (loadType === "assisted" || n < 0) return `${fmtLoad(n)} kg x ${reps}`;
+  if (!n) return `BW x ${reps}`;
+  return `${fmtLoad(n)} x ${reps}`;
+}
+
+export function formatKg(kg, loadType) {
+  const n = Number(kg);
+  if (loadType === "added") return `+${fmtLoad(Math.abs(n))} kg`;
+  if (loadType === "assisted" || n < 0) return `${fmtLoad(n)} kg`;
+  return `${fmtLoad(n)} kg`;
 }
 
 export function repLabel(min, max) {
@@ -257,7 +267,7 @@ export function resolveDay(plan, dayId, iso, overrides = []) {
         id = slug(name);
       }
     }
-    return { id, name, superset: ex.superset, sets, repsMin, repsMax, rir };
+    return { id, name, superset: ex.superset, sets, repsMin, repsMax, rir, loadType: ex.loadType || null };
   });
   return { day, phase, status, exercises: withSlots(exercises) };
 }
@@ -276,7 +286,7 @@ export function estimateMinutes(exercises) {
 export function targetLine(ex, suggestedKg) {
   const reps = repLabel(ex.repsMin, ex.repsMax);
   const sets = ex.targetSets || ex.sets;
-  const load = suggestedKg ? ` · ${fmtLoad(suggestedKg)} kg` : "";
+  const load = suggestedKg == null || suggestedKg === "" ? "" : ` · ${formatKg(suggestedKg, ex.loadType)}`;
   return `${sets} x ${reps}${load} · RIR ${ex.rir}`;
 }
 
@@ -442,6 +452,7 @@ export function createWorkout(plan, priorWorkouts, dayId, iso, overrides = []) {
       repsMin: ex.repsMin,
       repsMax: ex.repsMax,
       rir: ex.rir,
+      loadType: ex.loadType || null,
       sets: prefillSets(ex.sets, last ? last.sets : null),
     };
   });
@@ -470,7 +481,8 @@ export function sessionResult(exercise) {
   const miss = !allDone || done.some((s) => Number(s.reps) < Number(exercise.repsMin));
   const weights = done.map((s) => Number(s.kg) || 0);
   const minWeight = weights.length ? Math.min(...weights) : 0;
-  return { hitTop, miss, minWeight, doneCount: done.length };
+  const loadType = exercise.loadType || (done.some((s) => Number(s.kg) < 0) ? "assisted" : null);
+  return { hitTop, miss, minWeight, doneCount: done.length, loadType };
 }
 
 export function historyResults(workouts, dayId, exerciseName) {
@@ -491,13 +503,24 @@ export function historyResults(workouts, dayId, exerciseName) {
 export function progressionAdvice(resultsNewestFirst) {
   if (!resultsNewestFirst.length) return null;
   const latest = resultsNewestFirst[0];
+  const assisted = latest.loadType === "assisted";
+  const added = latest.loadType === "added";
   if (latest.hitTop) {
-    if (latest.minWeight > 0) {
+    if (assisted) {
       const next = Math.round((latest.minWeight + 2.5) * 100) / 100;
       return {
         type: "up",
         kg: next,
-        text: `Try ${fmtLoad(next)} kg next time (+2.5 kg).`,
+        text: `Try ${fmtLoad(next)} kg next time (2.5 kg less assistance).`,
+      };
+    }
+    if (latest.minWeight > 0) {
+      const next = Math.round((latest.minWeight + 2.5) * 100) / 100;
+      const shown = added ? `+${fmtLoad(next)} kg` : `${fmtLoad(next)} kg`;
+      return {
+        type: "up",
+        kg: next,
+        text: `Try ${shown} next time (+2.5 kg).`,
       };
     }
     return {
@@ -507,6 +530,14 @@ export function progressionAdvice(resultsNewestFirst) {
     };
   }
   if (resultsNewestFirst.length >= 2 && resultsNewestFirst[0].miss && resultsNewestFirst[1].miss) {
+    if (assisted) {
+      const more = Math.round((latest.minWeight - 2.5) * 100) / 100;
+      return {
+        type: "hold",
+        kg: latest.minWeight,
+        text: `Two misses in a row. Hold ${fmtLoad(latest.minWeight)} kg or use ${fmtLoad(more)} kg of assistance.`,
+      };
+    }
     if (latest.minWeight > 0) {
       const drop = Math.round(Math.max(0, latest.minWeight - 2.5) * 100) / 100;
       return {
@@ -531,7 +562,7 @@ export function adviceForExercise(workouts, dayId, exerciseName) {
 export function detectPRs(workout, previousWorkouts) {
   const prs = [];
   for (const ex of workout.exercises || []) {
-    const done = (ex.sets || []).filter((s) => s.completed && Number(s.reps) > 0 && Number(s.kg) > 0);
+    const done = (ex.sets || []).filter((s) => s.completed && Number(s.reps) > 0 && Number(s.kg) > 0 && ex.loadType !== "assisted");
     if (!done.length) continue;
     const best = done.reduce((a, s) => (e1rm(s.kg, s.reps) > e1rm(a.kg, a.reps) ? s : a));
     const bestE = e1rm(best.kg, best.reps);
@@ -551,6 +582,7 @@ export function detectPRs(workout, previousWorkouts) {
         name: ex.name,
         kg: Number(best.kg),
         reps: Number(best.reps),
+        loadType: ex.loadType || null,
         e1rm: Math.round(bestE * 10) / 10,
         delta: Math.round((bestE - prevBest) * 10) / 10,
       });
@@ -593,7 +625,8 @@ export function volumeOf(workout) {
       if (!s.completed || !Number(s.reps)) continue;
       sets += 1;
       reps += Number(s.reps);
-      volume += (Number(s.kg) || 0) * Number(s.reps);
+      const kg = Number(s.kg);
+      if (kg > 0 && ex.loadType !== "assisted") volume += kg * Number(s.reps);
     }
   }
   return { volume: Math.round(volume), sets, reps };
@@ -685,6 +718,7 @@ export function bestLifts(workouts) {
             e1rm: e,
             date: w.date,
             improved: !!cur,
+            loadType: ex.loadType || (Number(s.kg) < 0 ? "assisted" : null),
           });
         }
       }
@@ -717,7 +751,7 @@ export function sessionBlock(workout) {
   for (const ex of workout.exercises || []) {
     const done = (ex.sets || []).filter((s) => s.completed && s.reps);
     if (!done.length) continue;
-    lines.push(`- ${ex.name}: ${done.map((s) => fmtSet(s.kg, s.reps)).join(", ")}`);
+    lines.push(`- ${ex.name}: ${done.map((s) => fmtSet(s.kg, s.reps, ex.loadType)).join(", ")}`);
   }
   return lines;
 }
@@ -866,4 +900,65 @@ export function firstOpenSet(exercise) {
 
 export function workoutDoneCount(workouts, iso) {
   return weekDots(workouts, iso).filter((d) => d.done).length;
+}
+
+export function workoutFromHistorySeed(entry, plan) {
+  const day = (plan?.days || []).find((item) => item.id === entry.day_id);
+  const exercises = (entry.exercises || []).map((raw) => {
+    const planned = day?.exercises.find((item) => norm(item.name) === norm(raw.name));
+    const loadType = raw.load_type || planned?.loadType || null;
+    const sets = (raw.sets || []).map((pair) => {
+      const kg = Array.isArray(pair) ? Number(pair[0]) : Number(pair.kg);
+      const reps = Array.isArray(pair) ? Number(pair[1]) : Number(pair.reps);
+      return { kg, reps, completed: true, prevKg: null, prevReps: null };
+    });
+    return {
+      exerciseId: planned?.id || slug(raw.name),
+      name: planned?.name || raw.name,
+      superset: null,
+      slot: null,
+      targetSets: planned?.sets || sets.length,
+      repsMin: planned?.repsMin ?? 8,
+      repsMax: planned?.repsMax ?? 12,
+      rir: "1",
+      loadType,
+      sets,
+    };
+  });
+  return {
+    id: entry.id,
+    date: entry.date,
+    dayId: entry.day_id,
+    dayName: entry.day_name || day?.name || entry.day_id,
+    phaseName: "Strong",
+    source: "strong",
+    startedAt: `${entry.date}T08:00:00`,
+    finishedAt: `${entry.date}T09:00:00`,
+    status: "done",
+    logIndex: 0,
+    exercises,
+    prs: [],
+    advice: [],
+    note: "Imported from Strong",
+  };
+}
+
+export function mergeHistorySeed(workouts, seed, appliedIds = [], plan) {
+  const applied = new Set(appliedIds || []);
+  const next = [...(workouts || [])];
+  const ids = new Set(next.map((workout) => workout.id));
+  const added = [];
+  for (const entry of seed || []) {
+    if (!entry || !entry.id) continue;
+    if (applied.has(entry.id) || ids.has(entry.id)) {
+      applied.add(entry.id);
+      continue;
+    }
+    const session = entry.status === "done" && entry.dayId ? entry : workoutFromHistorySeed(entry, plan);
+    next.push(session);
+    ids.add(session.id);
+    applied.add(entry.id);
+    added.push(entry.id);
+  }
+  return { workouts: next, appliedIds: [...applied], added };
 }

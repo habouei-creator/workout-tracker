@@ -210,8 +210,8 @@ function home(state) {
   const proteinPct = targets.protein_g ? (totals.protein / targets.protein_g) * 100 : 0;
 
   const lifts = [
-    { id: "machine-chest-press", name: "Machine chest press" },
-    { id: "lat-pulldown", name: "Lat pulldown" },
+    { id: "lat-pulldown-cable", name: "Lat Pulldown (Cable)" },
+    { id: "seated-row-cable", name: "Seated Row (Cable)" },
   ];
   if (state.settings.topLiftId) {
     lifts.push({ id: state.settings.topLiftId, name: state.settings.topLiftName || "Your lift" });
@@ -265,7 +265,7 @@ function home(state) {
     <section class="card">
       <div class="lbl">Top lifts · e1RM</div>
       ${lifts.map((lift) => liftRow(state, lift)).join("")}
-      ${state.settings.topLiftId ? `<button class="link mt8" data-action="pick-lift">Change the third lift</button>` : `<button class="ex" data-action="pick-lift"><span><b>Choose a lift</b><span class="s">Machine chest press and lat pulldown stay. Add one more.</span></span><span class="acc last">Add</span></button>`}
+      ${state.settings.topLiftId ? `<button class="link mt8" data-action="pick-lift">Change the third lift</button>` : `<button class="ex" data-action="pick-lift"><span><b>Choose a lift</b><span class="s">Lat pulldown and seated row stay. Add one more.</span></span><span class="acc last">Add</span></button>`}
     </section>
     <div class="gap">
       <section class="card">
@@ -384,9 +384,9 @@ function train(state) {
 function exercisePreview(state, dayId, ex) {
   const last = lastPerformance(state.workouts, ex.name);
   const advice = adviceForExercise(state.workouts, dayId, ex.name);
-  const suggested = advice && advice.type === "up" && advice.kg ? advice.kg : last && last.best && Number(last.best.kg) ? Number(last.best.kg) : null;
+  const suggested = advice && advice.type === "up" && advice.kg != null ? advice.kg : last && last.best && last.best.kg != null && last.best.kg !== "" ? Number(last.best.kg) : null;
   const line = targetLine(ex, suggested);
-  const lastTxt = last ? `Last ${fmtSet(last.best.kg, last.best.reps)}` : "No history";
+  const lastTxt = last ? `Last ${fmtSet(last.best.kg, last.best.reps, last.exercise.loadType)}` : "No history";
   const adviceLine = advice ? `<span class="s ${advice.type === "hold" ? "amber" : "acc"}">${esc(advice.text)}</span>` : "";
   return `<div class="ex"><div>${ex.slot ? `<span class="tag">${esc(ex.slot)}</span>` : ""}<b>${esc(ex.name)}</b><span class="s">${esc(line)}</span>${adviceLine}</div><span class="last ${last ? "acc" : "dim"}">${esc(lastTxt)}</span></div>`;
 }
@@ -439,7 +439,7 @@ function log(state) {
   const rows = ex.sets
     .map((s, si) => {
       const active = si === open;
-      const prev = s.prevReps ? fmtSet(s.prevKg, s.prevReps) : "·";
+      const prev = s.prevReps ? fmtSet(s.prevKg, s.prevReps, ex.loadType) : "-";
       return `<div class="setrow ${active ? "active" : ""}">
         <span class="setn">${si + 1}</span>
         <span class="prev">${esc(prev)}</span>
@@ -508,7 +508,7 @@ function summary(state) {
     </div>
     <section class="card">
       <div class="lbl">Personal records</div>
-      ${prs.length ? prs.map((p) => `<div class="ex"><b>${esc(p.name)}</b><span class="acc">${esc(fmtSet(p.kg, p.reps))} 🏆</span></div>`).join("") : `<p class="sub">No new PRs this time. Your bests update once you beat a previous estimated 1RM.</p>`}
+      ${prs.length ? prs.map((p) => `<div class="ex"><b>${esc(p.name)}</b><span class="acc">${esc(fmtSet(p.kg, p.reps, p.loadType))} 🏆</span></div>`).join("") : `<p class="sub">No new PRs this time. Your bests update once you beat a previous estimated 1RM.</p>`}
     </section>
     <section class="card">
       <div class="lbl">Next time</div>
@@ -518,7 +518,7 @@ function summary(state) {
       .map((ex) => {
         const done = (ex.sets || []).filter((s) => s.completed && s.reps);
         if (!done.length) return "";
-        return `<div class="ex"><div><b>${esc(ex.name)}</b><span class="s">${esc(done.map((s) => fmtSet(s.kg, s.reps)).join(", "))}</span></div></div>`;
+        return `<div class="ex"><div><b>${esc(ex.name)}</b><span class="s">${esc(done.map((s) => fmtSet(s.kg, s.reps, ex.loadType)).join(", "))}</span></div></div>`;
       })
       .join("")}</section>
     <button class="btn mt16" data-action="train-tab" data-tab="today">Done</button>`;
@@ -543,11 +543,11 @@ function progress(state) {
     <section class="card">
       <div class="row"><b>${esc(name || "Lift")} · est. 1RM</b>${delta == null ? "" : `<span class="acc" style="font-size:13px">${esc(formatDelta(delta, 0))} kg</span>`}</div>
       ${pts.length >= 1 ? chart(pts.map((p) => p.date), [{ values: pts.map((p) => p.e1rm), color: "#b6f23c", width: 3, dots: true }]) : `<p class="sub">No sessions for this lift yet.</p>`}
-      ${last ? `<div class="sub">Latest ${esc(fmtSet(last.kg, last.reps))} · e1RM ${esc(fmtLoad(last.e1rm))} kg</div>` : ""}
+      ${last ? `<div class="sub">Latest ${esc(fmtSet(last.kg, last.reps, selected && selected.loadType))} · e1RM ${esc(fmtLoad(last.e1rm))} kg</div>` : ""}
     </section>
     <div class="lbl mt16">Personal records</div>
     <section class="card pad-tight">
-      ${records.length ? records.map((r) => `<div class="ex"><b>${esc(r.name)}</b><span class="acc">${esc(fmtSet(r.kg, r.reps))}${r.improved ? " 🏆" : ""}</span></div>`).join("") : `<p class="sub" style="padding:10px 0">Your best sets show up here after you log them.</p>`}
+      ${records.length ? records.map((r) => `<div class="ex"><b>${esc(r.name)}</b><span class="acc">${esc(fmtSet(r.kg, r.reps, r.loadType))}${r.improved ? " 🏆" : ""}</span></div>`).join("") : `<p class="sub" style="padding:10px 0">Your best sets show up here after you log them.</p>`}
     </section>
     <p class="sub">Estimated 1RM uses the Epley formula: weight × (1 + reps / 30).</p>`;
 }
@@ -667,7 +667,7 @@ export function buildCheckin(state) {
       const done = (ex.sets || []).filter((s) => s.completed && s.reps);
       if (!done.length) continue;
       const best = done.reduce((a, s) => (Number(s.kg) * Number(s.reps) > Number(a.kg) * Number(a.reps) ? s : a));
-      lines.push(`- ${ex.name}: ${done.map((s) => fmtSet(s.kg, s.reps)).join(", ")} (top ${fmtSet(best.kg, best.reps)})`);
+      lines.push(`- ${ex.name}: ${done.map((s) => fmtSet(s.kg, s.reps, ex.loadType)).join(", ")} (top ${fmtSet(best.kg, best.reps, ex.loadType)})`);
     }
   }
   return checkinText({
@@ -917,8 +917,8 @@ function sheet(state) {
       <button class="btn mt16" data-action="${esc(s.confirmAction)}" ${s.payload || ""}>${esc(s.confirmLabel || "Confirm")}</button>
       <button class="btn ghost" data-action="close-sheet">Cancel</button>`;
   } else if (s.type === "lift") {
-    const catalog = exerciseCatalog(state.plan, state.workouts).filter((e) => e.id !== "machine-chest-press" && e.id !== "lat-pulldown");
-    body = `<h2>Choose a lift</h2><p class="sub">This is the third e1RM on Home, next to machine chest press and lat pulldown.</p>
+    const catalog = exerciseCatalog(state.plan, state.workouts).filter((e) => e.id !== "lat-pulldown-cable" && e.id !== "seated-row-cable");
+    body = `<h2>Choose a lift</h2><p class="sub">This is the third e1RM on Home, next to lat pulldown and seated row.</p>
       ${catalog.map((e) => `<button class="choice" data-action="set-lift" data-id="${esc(e.id)}" data-name="${esc(e.name)}">${esc(e.name)}</button>`).join("")}
       <button class="btn ghost" data-action="close-sheet">Cancel</button>`;
   } else if (s.type === "steps") {

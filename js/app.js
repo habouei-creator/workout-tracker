@@ -1,5 +1,5 @@
 import { loadAll, saveAll } from "./db.js";
-import { freshPlan } from "./plan.js";
+import { freshPlan, upgradePlan } from "./plan.js";
 import { fetchCoach } from "./coach.js";
 import { renderApp, buildCheckin, backupPayload } from "./render.js";
 import * as L from "./logic.js";
@@ -15,7 +15,7 @@ const state = {
   coach: { targets: { kcal_min: 2400, kcal_max: 2600, protein_g: 200 }, food_days: [], notes: [], exercise_overrides: [], plan_changes: [] },
   coachSource: "empty",
   foodDate: "",
-  progressId: "machine-chest-press",
+  progressId: "lat-pulldown-cable",
   sheet: null,
   toast: "",
   ptr: "",
@@ -36,7 +36,7 @@ let pendingSave = false;
 let toastTimer = 0;
 
 function defaultSettings() {
-  return { topLiftId: null, topLiftName: null, coachNoteDraft: "", stepGoal: 10000 };
+  return { topLiftId: null, topLiftName: null, coachNoteDraft: "", stepGoal: 10000, appliedHistorySeedIds: [] };
 }
 
 function todayISO() {
@@ -120,11 +120,24 @@ function recomputePRs() {
   }
 }
 
+function applyHistorySeed() {
+  const seed = state.coach?.history_seed || [];
+  const current = state.settings.appliedHistorySeedIds || [];
+  const merged = L.mergeHistorySeed(state.workouts, seed, current, state.plan);
+  state.workouts = merged.workouts;
+  state.settings.appliedHistorySeedIds = merged.appliedIds;
+  if (merged.added.length) {
+    recomputePRs();
+    persist();
+  }
+}
+
 async function refreshCoach() {
   const result = await fetchCoach();
   state.coach = result.data;
   state.coachSource = result.source;
   if (state.plan && L.mergePlanChanges(state.plan, state.coach.plan_changes)) persist();
+  applyHistorySeed();
 }
 
 function syncLogInputs() {
@@ -1003,13 +1016,14 @@ async function init() {
     showBootError("This browser blocked on-phone storage. Open the app in a normal Safari tab, not private mode, then add it to the Home Screen again.");
     return;
   }
-  state.plan = data.plan && data.plan.days && data.plan.phases ? data.plan : freshPlan();
+  const storedPlan = data.plan && data.plan.days && data.plan.phases ? data.plan : null;
+  state.plan = upgradePlan(storedPlan);
   if (!state.plan.schedule) state.plan.schedule = freshPlan().schedule;
   state.workouts = data.workouts || [];
   state.weighins = data.weighins || [];
   state.steps = data.steps || {};
   state.settings = { ...defaultSettings(), ...(data.settings || {}) };
-  if (!data.plan) persist();
+  if (!storedPlan || (storedPlan.seedVersion || 1) < state.plan.seedVersion) persist();
   await refreshCoach();
   render();
   document.body.addEventListener("click", onClick);

@@ -14,5 +14,51 @@
     }
   ],
   "exercise_overrides": [],
-  "plan_changes": []
+  "plan_changes": [],
+  "history_seed": [
+    {
+      "id": "strong-push-2026-11-17",
+      "date": "2026-11-17",
+      "day_id": "push",
+      "day_name": "Push",
+      "exercises": [
+        { "name": "Shrug (Dumbbell)", "sets": [[30, 15], [35, 12], [35, 12]] },
+        { "name": "Preacher Curl (Machine)", "sets": [[45, 12], [50, 10], [50, 12]] },
+        { "name": "Tricep Arm Side", "sets": [[5, 12], [6, 12], [6, 12]] },
+        { "name": "Chest Fly", "sets": [[5, 12], [5, 12], [6, 12]] },
+        { "name": "Chest Press (Band)", "load_type": "added", "sets": [[6, 12], [6, 12], [6, 12]] },
+        { "name": "Crunch (Machine)", "sets": [[23, 20], [36, 25], [45, 25]] },
+        { "name": "Core 3X Set", "load_type": "assisted", "sets": [[-5, 25], [-4, 25], [-4, 25]] }
+      ]
+    },
+    {
+      "id": "strong-pull-2026-11-18",
+      "date": "2026-11-18",
+      "day_id": "pull",
+      "day_name": "Pull",
+      "exercises": [
+        { "name": "Lat Pulldown (Cable)", "sets": [[59, 10], [59, 10], [59, 10]] },
+        { "name": "Seated Row (Cable)", "sets": [[45, 12], [50, 11], [50, 11]] },
+        { "name": "Hammer Curl (Cable)", "sets": [[14, 13], [14, 12], [14, 12]] },
+        { "name": "Triceps Extension", "sets": [[10, 12], [10, 12], [10, 11]] },
+        { "name": "Bicep Curl (Cable)", "sets": [[7, 12], [7, 12], [7, 12]] },
+        { "name": "Bent over row (cable)", "sets": [[11, 12], [11, 12], [11, 12]] },
+        { "name": "Lateral Raise (Cable)", "sets": [[8, 10], [8, 12], [8, 12]] }
+      ]
+    },
+    {
+      "id": "strong-legs-2026-11-19",
+      "date": "2026-11-19",
+      "day_id": "legs",
+      "day_name": "Legs",
+      "exercises": [
+        { "name": "Goblet Squat (Kettlebell)", "sets": [[20, 12], [20, 12], [20, 12]] },
+        { "name": "Leg Extension (Machine)", "sets": [[40, 12], [40, 12], [40, 12]] },
+        { "name": "Standing Calf Raise (Dumbbell)", "sets": [[20, 15], [20, 15], [20, 15]] },
+        { "name": "Lying Leg Curl (Machine)", "sets": [[27, 10], [27, 11], [27, 8]] },
+        { "name": "Hip Thrust (Barbell)", "sets": [[30, 10], [40, 10], [40, 10]] },
+        { "name": "Seated Calf Raise (Plate Loaded)", "sets": [[45, 15], [45, 15], [45, 15]] }
+      ]
+    }
+  ]
 }

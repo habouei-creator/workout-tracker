@@ -14,6 +14,7 @@ export function normalizeCoach(data) {
     notes: Array.isArray(d.notes) ? d.notes : [],
     exercise_overrides: Array.isArray(d.exercise_overrides) ? d.exercise_overrides : [],
     plan_changes: Array.isArray(d.plan_changes) ? d.plan_changes : [],
+    history_seed: Array.isArray(d.history_seed) ? d.history_seed : [],
   };
 }
 
