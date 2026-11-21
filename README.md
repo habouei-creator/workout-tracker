@@ -15,7 +15,7 @@ The first open needs a network connection so the app can save itself for offline
 ## What is on each tab
 
 - **Home.** Current phase and week of the 8-week block, the 7-day average weight and the change versus last week, Sunday waist, workouts done this week (six dots, Monday to Saturday), today's food against the coach targets, days on target, estimated 1RM for machine chest press, lat pulldown, and one lift Houman picks, the next photo date, and the latest coach note. If this morning's weigh-in is missing, Home asks for it.
-- **Train.** Today's workout from the Push / Pull / Legs split, with targets, RIR, last session, and the coach note. Start opens the logger: previous, kg, and reps are prefilled from last time, one tap completes a set, sets can be added or removed, and a rest timer starts after a straight set or after a superset (no rest between the two exercises in a pair). There is an elapsed timer, shoulder-safe swaps, custom exercises, and a finish summary with volume and PRs. Progress charts estimated 1RM. History lists past sessions.
+- **Train.** Today's workout from the Push / Pull / Legs split, with targets, RIR, last session, and the coach note. Sunday is a rest day. Start opens the logger: previous, kg, and reps are prefilled from last time, one tap completes a set, and sets can be added or removed. An elapsed timer runs for the session. Shoulder-safe swaps, custom exercises, and a finish summary with volume and PRs are included. Progress charts estimated 1RM. History lists past sessions.
 - **Food.** Read-only. Houman does not type meals. The day view shows what Coach committed, with totals against the targets, and earlier days are one tap back.
 - **Coach.** The weekly check-in (workouts out of 6, average weight and the change, waist, average calories and protein, days on target, PRs, and each session's sets). Copy check-in for Coach puts a plain-text report on the clipboard, including a note Houman can type on that screen. Photo reminders and the coach note history are here too.
 
@@ -35,7 +35,9 @@ The seeded plan is the 8-week block from 2 Nov 2026 through 27 Dec 2026.
 | Saturday | Legs B |
 | Sunday | Rest, plus an easy long walk |
 
-Supersets are the A1/A2 pairs from the plan. Two exercises that share a letter are a pair: the first has no rest, the second holds the rest. A letter used once is a straight set.
+Every week is Monday to Sunday. Week 1 starts Monday 2 Nov 2026. The six workout dots are Monday through Saturday. Sunday is rest, and that is when the weekly check-in covers the full Monday-to-Sunday window. The weight change compares this calendar week with the previous one. The 7-day average weight stays a rolling average.
+
+Supersets are the A1/A2 pairs from the plan. Two exercises that share a letter are a pair. A letter used once is a straight set.
 
 | Phase | Dates | Sets | Effort |
 | --- | --- | --- | --- |
@@ -106,7 +108,6 @@ Do not rename the keys. Numbers are plain numbers, dates are `YYYY-MM-DD`, and t
   "sets": 5,
   "reps_min": 8,
   "reps_max": 10,
-  "rest_sec": 90,
   "rir": "1",
   "replace_with": null,
   "applies_from": "2026-11-16",
@@ -215,5 +216,5 @@ Do not also set "Deploy from a branch" at the same time. The workflow is the sou
 - Food does not appear until Coach commits `data/coach.json` and the phone can fetch it.
 - Estimated 1RM is a formula, not a tested max.
 - Steps are typed. Apple Health, sleep, and photos are not connected.
-- Rest timers can beep only after the phone has allowed sound. iOS may stay silent if the ringer is off. The timer still shows on screen.
+- There is no rest countdown. The logger keeps an elapsed workout timer only. A `rest_sec` field in an old coach file is ignored.
 - Private Safari tabs can block storage. Use a normal tab, then Add to Home Screen.

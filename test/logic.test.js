@@ -25,7 +25,9 @@ import {
   startOfWeekMonday,
   trailingAverage,
   weekWeightDelta,
+  weekDots,
 } from "../js/logic.js";
+import { buildCheckin } from "../js/render.js";
 
 const plan = freshPlan();
 
@@ -178,19 +180,19 @@ test("session result uses the prescribed rep range", () => {
   assert.equal(sessionResult(ex).hitTop, false);
 });
 
-test("superset rest: no rest inside the pair, rest after", () => {
+test("supersets move to the partner with no rest countdown", () => {
   const exercises = [
-    { superset: "C", restSec: 0, sets: [{ completed: true }, { completed: false }] },
-    { superset: "C", restSec: 60, sets: [{ completed: false }, { completed: false }] },
-    { superset: "D", restSec: 60, sets: [{ completed: false }] },
+    { superset: "C", sets: [{ completed: true }, { completed: false }] },
+    { superset: "C", sets: [{ completed: false }, { completed: false }] },
+    { superset: "D", sets: [{ completed: false }] },
   ];
-  const jump = afterSetAction(exercises, 0);
-  assert.deepEqual(jump, { type: "goto", index: 1 });
+  assert.deepEqual(afterSetAction(exercises, 0), { type: "goto", index: 1 });
   exercises[1].sets[0].completed = true;
-  const rest = afterSetAction(exercises, 1);
-  assert.equal(rest.type, "rest");
-  assert.equal(rest.seconds, 60);
-  assert.equal(rest.thenIndex, 0);
+  assert.deepEqual(afterSetAction(exercises, 1), { type: "goto", index: 0 });
+  exercises[0].sets[1].completed = true;
+  exercises[1].sets[1].completed = true;
+  assert.deepEqual(afterSetAction(exercises, 1), { type: "goto", index: 2 });
+  assert.equal(JSON.stringify(afterSetAction(exercises, 0)).includes("rest"), false);
 });
 
 test("e1rm epley", () => {
@@ -277,4 +279,67 @@ test("coach normalize fills defaults", () => {
 test("monday of the block is week 1 not week 0", () => {
   assert.equal(week(plan, "2026-11-02").week, 1);
   assert.equal(addDays("2026-11-02", 55), "2026-12-27");
+});
+
+test("every week is Monday to Sunday with Sunday rest", () => {
+  const ids = ["push-a", "pull-a", "legs-a", "push-b", "pull-b", "legs-b", null];
+  for (const monday of ["2026-11-02", "2026-11-16", "2026-11-23", "2026-12-07"]) {
+    ids.forEach((id, i) => {
+      const date = addDays(monday, i);
+      assert.equal(scheduledDayId(plan, date), id, date);
+      assert.equal(startOfWeekMonday(date), monday, date);
+    });
+  }
+  assert.equal(week(plan, "2026-11-02").week, 1);
+  assert.equal(week(plan, "2026-11-08").week, 1);
+  assert.equal(week(plan, "2026-11-09").week, 2);
+  assert.equal(week(plan, "2026-11-22").week, 3);
+  assert.equal(week(plan, "2026-11-23").week, 4);
+  assert.equal(phaseLabel(plan, "2026-11-23"), "Push phase · week 4 of 8");
+
+  const sundayDots = weekDots([{ status: "done", date: "2026-11-22" }], "2026-11-22");
+  assert.deepEqual(
+    sundayDots.map((d) => d.date),
+    ["2026-11-16", "2026-11-17", "2026-11-18", "2026-11-19", "2026-11-20", "2026-11-21"]
+  );
+  assert.equal(sundayDots.some((d) => d.done), false);
+  assert.equal(sundayDots.every((d) => !d.future), true);
+
+  const mondayDots = weekDots([{ status: "done", date: "2026-11-23" }], "2026-11-23");
+  assert.equal(mondayDots[0].done, true);
+  assert.equal(mondayDots.slice(1).every((d) => d.future && !d.done), true);
+
+  const targets = { kcal_min: 2400, kcal_max: 2600, protein_g: 200 };
+  const food = [{ date: "2026-11-16", meals: [{ kcal: 2500, protein_g: 210 }] }];
+  assert.deepEqual(daysOnTarget(food, targets, "2026-11-16"), { on: 1, total: 1 });
+  assert.deepEqual(daysOnTarget(food, targets, "2026-11-21"), { on: 1, total: 6 });
+  assert.deepEqual(daysOnTarget(food, targets, "2026-11-22"), { on: 1, total: 7 });
+  assert.deepEqual(daysOnTarget(food, targets, "2026-11-23"), { on: 0, total: 1 });
+
+  const weighins = [
+    { date: "2026-11-10", kg: 96 },
+    { date: "2026-11-16", kg: 95 },
+    { date: "2026-11-22", kg: 94 },
+    { date: "2026-11-23", kg: 90 },
+  ];
+  assert.ok(Math.abs(weekWeightDelta(weighins, "2026-11-22") - (94.5 - 96)) < 0.001);
+  assert.ok(Math.abs(weekWeightDelta(weighins, "2026-11-23") - (90 - 94.5)) < 0.001);
+  assert.ok(Math.abs(trailingAverage(weighins, "2026-11-23", 7) - 92) < 0.001);
+});
+
+test("Sunday check-in covers Monday through Sunday", () => {
+  const base = {
+    plan,
+    workouts: [],
+    weighins: [],
+    coach: { food_days: [], targets: { kcal_min: 2400, kcal_max: 2600, protein_g: 200 }, notes: [] },
+    settings: { coachNoteDraft: "" },
+  };
+  const sunday = buildCheckin({ ...base, today: "2026-11-22" });
+  assert.match(sunday, /^Week 3 check-in\n/);
+  assert.match(sunday, /Mon, Nov 16 to Sun, Nov 22/);
+  assert.equal(sunday.includes("so far"), false);
+  const monday = buildCheckin({ ...base, today: "2026-11-23" });
+  assert.match(monday, /Week 4 check-in \(so far\)/);
+  assert.match(monday, /Mon, Nov 23 to Mon, Nov 23/);
 });

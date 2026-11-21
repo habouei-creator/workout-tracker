@@ -37,7 +37,6 @@ import {
   fmtSet,
   formatDelta,
   formatElapsed,
-  formatRest,
   chartPoints,
   sharedMinMax,
   pointsAttr,
@@ -326,7 +325,7 @@ function train(state) {
     <div class="sub" style="margin-top:10px">${esc(phaseLabel(state.plan, state.today))}</div>`;
 
   if (active) {
-    const mins = estimateMinutes(active.exercises.map((e) => ({ sets: e.sets.length, restSec: e.restSec })));
+    const mins = estimateMinutes(active.exercises.map((e) => ({ sets: e.sets.length })));
     return {
       body: `${header}
         <div class="row mt8"><h1>${esc(active.dayName)}</h1></div>
@@ -436,12 +435,10 @@ function log(state) {
   const i = Math.max(0, Math.min(w.logIndex || 0, w.exercises.length - 1));
   const ex = w.exercises[i];
   const open = firstOpenSet(ex);
-  const resting = state.rest && state.rest.endsAt > Date.now();
-  const left = resting ? Math.ceil((state.rest.endsAt - Date.now()) / 1000) : 0;
   const advice = adviceForExercise(state.workouts.filter((x) => x.id !== w.id), w.dayId, ex.name);
   const rows = ex.sets
     .map((s, si) => {
-      const active = si === open && !resting;
+      const active = si === open;
       const prev = s.prevReps ? fmtSet(s.prevKg, s.prevReps) : "·";
       return `<div class="setrow ${active ? "active" : ""}">
         <span class="setn">${si + 1}</span>
@@ -455,10 +452,7 @@ function log(state) {
 
   let actionLabel = "Finish workout";
   let action = "ask-finish";
-  if (resting) {
-    actionLabel = "Skip rest";
-    action = "skip-rest";
-  } else if (open >= 0) {
+  if (open >= 0) {
     actionLabel = `Log set ${open + 1}`;
     action = "log-next";
   } else if (w.exercises.some((e) => firstOpenSet(e) >= 0)) {
@@ -480,7 +474,6 @@ function log(state) {
         ${rows}
       </section>
       ${state.logError ? `<div class="err">${esc(state.logError)}</div>` : ""}
-      ${resting ? `<section class="card rest"><div class="lbl">Rest</div><div class="clock" id="rest-clock">${esc(formatRest(left))}</div><div class="pills"><button class="pill" data-action="rest-minus">-15s</button><button class="pill" data-action="rest-plus">+15s</button><button class="pill" data-action="skip-rest">Skip</button></div></section>` : ""}
       <div class="pair">
         <button class="pill" data-action="swap">⇄ Swap exercise</button>
         <button class="pill" data-action="add-set">+ Add set</button>
@@ -492,8 +485,7 @@ function log(state) {
       <div class="row">
         <button class="link" data-action="prev-ex" ${i === 0 ? "disabled" : ""}>Previous exercise</button>
         <button class="link" data-action="next-ex">Next exercise</button>
-      </div>
-      <p class="sub">No rest between exercises in a superset. Rest starts after the pair.</p>`,
+      </div>`,
     action: `<button class="btn" data-action="${action}">${esc(actionLabel)}</button>`,
   };
 }
@@ -871,7 +863,7 @@ function planDay(state) {
     <button class="back" data-action="open-plan">‹ Plan</button>
     <div class="field"><label>Name</label><input data-bind="day|${esc(day.id)}|name" value="${esc(day.name)}"></div>
     <div class="field"><label>Focus</label><input data-bind="day|${esc(day.id)}|focus" value="${esc(day.focus || "")}"></div>
-    <p class="sub">A and B moves get extra sets in Push and Peak. Give two exercises the same letter to make a superset. The second one holds the rest.</p>
+    <p class="sub">A and B moves get extra sets in Push and Peak. Give two exercises the same letter to make a superset.</p>
     ${(day.exercises || [])
       .map((ex, i) => `<section class="card">
         <div class="field"><label>Exercise ${i + 1}</label><input data-bind="ex|${esc(day.id)}|${i}|name" value="${esc(ex.name)}"></div>
@@ -883,7 +875,6 @@ function planDay(state) {
           <div class="field"><label>Reps min</label><input inputmode="numeric" data-bind="ex|${esc(day.id)}|${i}|repsMin" value="${esc(String(ex.repsMin))}"></div>
           <div class="field"><label>Reps max</label><input inputmode="numeric" data-bind="ex|${esc(day.id)}|${i}|repsMax" value="${esc(String(ex.repsMax))}"></div>
         </div>
-        <div class="field"><label>Rest seconds (0 inside a superset)</label><input inputmode="numeric" data-bind="ex|${esc(day.id)}|${i}|restSec" value="${esc(String(ex.restSec))}"></div>
         <div class="row mt8">
           <button class="link" data-action="move-ex" data-id="${esc(day.id)}" data-i="${i}" data-dir="-1">Up</button>
           <button class="link" data-action="move-ex" data-id="${esc(day.id)}" data-i="${i}" data-dir="1">Down</button>

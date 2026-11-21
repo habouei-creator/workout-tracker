@@ -269,14 +269,6 @@ h2 { font-size: 15px; font-weight: 700; }
 }
 .check.on { background: transparent; color: var(--lime); border-color: transparent; font-size: 20px; }
 
-.rest {
-  text-align: center;
-  background: linear-gradient(#171b22, #1b2330);
-}
-.rest .clock { font-size: 54px; font-weight: 700; color: var(--lime); letter-spacing: -1px; margin: 2px 0 8px; }
-.rest .pills { display: flex; justify-content: center; gap: 10px; }
-.rest .pills button { min-width: 64px; }
-
 .pair { display: flex; gap: 10px; margin-top: 12px; }
 .pair .pill { flex: 1; padding: 11px 8px; font-size: 13px; font-weight: 650; }
 

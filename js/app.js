@@ -18,7 +18,6 @@ const state = {
   progressId: "machine-chest-press",
   sheet: null,
   toast: "",
-  rest: null,
   ptr: "",
   weigh: { mode: "weight", weight: "", waist: "" },
   weighError: "",
@@ -35,7 +34,6 @@ let lastScreen = "";
 let writing = false;
 let pendingSave = false;
 let toastTimer = 0;
-let audioCtx = null;
 
 function defaultSettings() {
   return { topLiftId: null, topLiftName: null, coachNoteDraft: "", stepGoal: 10000 };
@@ -98,9 +96,6 @@ function render() {
   document.getElementById("app").innerHTML = renderApp(state);
   const next = document.getElementById("scroll");
   if (next) next.scrollTop = top;
-  if (state.rest && state.screen === "log") {
-    requestAnimationFrame(() => document.querySelector(".rest")?.scrollIntoView({ block: "nearest" }));
-  }
 }
 
 function toast(message) {
@@ -132,38 +127,6 @@ async function refreshCoach() {
   if (state.plan && L.mergePlanChanges(state.plan, state.coach.plan_changes)) persist();
 }
 
-function restoreRest() {
-  const w = activeWorkout();
-  if (w && w.rest && w.rest.endsAt > Date.now()) state.rest = w.rest;
-  else {
-    state.rest = null;
-    if (w) w.rest = null;
-  }
-}
-
-function beep() {
-  try {
-    audioCtx = audioCtx || new AudioContext();
-    if (audioCtx.state === "suspended") audioCtx.resume();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.frequency.value = 880;
-    gain.gain.value = 0.05;
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.start();
-    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.22);
-    osc.stop(audioCtx.currentTime + 0.24);
-  } catch {
-    /* autoplay blocked */
-  }
-  try {
-    if (navigator.vibrate) navigator.vibrate(160);
-  } catch {
-    /* ignore */
-  }
-}
-
 function syncLogInputs() {
   document.querySelectorAll("[data-action='set-kg'], [data-action='set-reps']").forEach((el) => {
     writeSet(el, el.dataset.action === "set-kg");
@@ -187,26 +150,6 @@ function writeSet(el, isKg) {
   else set.reps = Math.round(n);
 }
 
-function startRest(seconds, thenIndex) {
-  const w = activeWorkout();
-  state.rest = { endsAt: Date.now() + seconds * 1000, total: seconds, thenIndex };
-  if (w) w.rest = state.rest;
-}
-
-function restDone() {
-  const thenIndex = state.rest ? state.rest.thenIndex : 0;
-  state.rest = null;
-  const w = activeWorkout();
-  if (w) {
-    w.rest = null;
-    w.logIndex = thenIndex || 0;
-  }
-  state.forceScrollTop = true;
-  beep();
-  persist();
-  render();
-}
-
 function completeSet(exIndex, setIndex) {
   syncLogInputs();
   const w = activeWorkout();
@@ -225,14 +168,9 @@ function completeSet(exIndex, setIndex) {
   set.completed = true;
   state.logError = "";
   const action = L.afterSetAction(w.exercises, exIndex);
-  if (action.type === "rest") startRest(action.seconds, action.thenIndex);
-  else {
-    state.rest = null;
-    w.rest = null;
-    if (action.type === "goto" && action.index !== exIndex) {
-      w.logIndex = action.index;
-      state.forceScrollTop = true;
-    }
+  if (action.type === "goto" && action.index !== exIndex) {
+    w.logIndex = action.index;
+    state.forceScrollTop = true;
   }
   persist();
   render();
@@ -263,7 +201,6 @@ function startWorkout(dayId) {
   const workout = L.createWorkout(state.plan, state.workouts, dayId, state.today, state.coach.exercise_overrides);
   if (!workout) return;
   state.workouts.push(workout);
-  state.rest = null;
   state.sheet = null;
   state.logError = "";
   state.screen = "log";
@@ -280,7 +217,6 @@ function finishWorkout() {
   const done = L.finishWorkout(w, prior);
   const idx = state.workouts.findIndex((x) => x.id === w.id);
   state.workouts[idx] = done;
-  state.rest = null;
   state.summaryId = done.id;
   state.screen = "summary";
   state.sheet = null;
@@ -377,7 +313,6 @@ function applySwap(name) {
       targetSets: ex.targetSets,
       repsMin: ex.repsMin,
       repsMax: ex.repsMax,
-      restSec: ex.restSec,
       rir: ex.rir,
       sets: L.prefillSets(ex.targetSets || ex.sets.length, last ? last.sets : null),
     };
@@ -450,7 +385,7 @@ function applyBind(path, value) {
       ex.superset = letter || null;
       return;
     }
-    if (["sets", "repsMin", "repsMax", "restSec"].includes(field)) {
+    if (["sets", "repsMin", "repsMax"].includes(field)) {
       ex[field] = Math.max(0, Math.round(Number(value) || 0));
     }
   }
@@ -528,7 +463,6 @@ async function doImport() {
     state.settings = { ...defaultSettings(), ...(data.settings || {}) };
     state.sheet = null;
     state.planError = "";
-    restoreRest();
     persist();
     toast("Backup imported");
   } catch {
@@ -543,14 +477,6 @@ function tick() {
   if (elapsed && w?.startedAt) {
     elapsed.textContent = L.formatElapsed(Date.now() - new Date(w.startedAt).getTime());
   }
-  if (!state.rest) return;
-  const left = Math.ceil((state.rest.endsAt - Date.now()) / 1000);
-  if (left <= 0) {
-    restDone();
-    return;
-  }
-  const clock = document.getElementById("rest-clock");
-  if (clock) clock.textContent = L.formatRest(left);
 }
 
 function goTab(tab) {
@@ -572,7 +498,6 @@ function onClick(event) {
   if (!el) return;
   const action = el.dataset.action;
   if (!action || action === "stop") return;
-  if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
   if (action === "close-sheet") {
     state.sheet = null;
     state.planError = "";
@@ -641,7 +566,6 @@ function handle(action, el) {
   if (action === "discard-start") {
     const dayId = state.sheet?.dayId;
     state.workouts = state.workouts.filter((x) => x.status !== "active");
-    state.rest = null;
     state.sheet = null;
     persist();
     startWorkout(dayId);
@@ -677,28 +601,10 @@ function handle(action, el) {
     if (!set) return;
     if (set.completed) {
       set.completed = false;
-      state.rest = null;
-      w.rest = null;
       state.logError = "";
       persist();
       render();
     } else completeSet(i, s);
-    return;
-  }
-  if (action === "skip-rest") {
-    if (state.rest) restDone();
-    return;
-  }
-  if (action === "rest-minus" || action === "rest-plus") {
-    if (!state.rest) return;
-    state.rest.endsAt += action === "rest-plus" ? 15000 : -15000;
-    if (w) w.rest = state.rest;
-    if (state.rest.endsAt <= Date.now()) restDone();
-    else {
-      persist();
-      const clock = document.getElementById("rest-clock");
-      if (clock) clock.textContent = L.formatRest(Math.ceil((state.rest.endsAt - Date.now()) / 1000));
-    }
     return;
   }
   if (action === "next-ex") {
@@ -976,7 +882,6 @@ function handle(action, el) {
       sets: 3,
       repsMin: 8,
       repsMax: 12,
-      restSec: 60,
       superset: null,
     });
     state.planError = "";
@@ -1104,7 +1009,6 @@ async function init() {
   state.weighins = data.weighins || [];
   state.steps = data.steps || {};
   state.settings = { ...defaultSettings(), ...(data.settings || {}) };
-  restoreRest();
   if (!data.plan) persist();
   await refreshCoach();
   render();

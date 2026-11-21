@@ -137,13 +137,6 @@ export function formatElapsed(ms) {
   return `${m}:${pad(ss)}`;
 }
 
-export function formatRest(totalSeconds) {
-  const s = Math.max(0, Math.ceil(totalSeconds));
-  const m = Math.floor(s / 60);
-  const ss = s % 60;
-  return `${m}:${pad(ss)}`;
-}
-
 const BANNED = [
   /overhead/i,
   /shoulder press/i,
@@ -189,9 +182,7 @@ export function phaseForDate(plan, iso) {
 }
 
 export function weekOfBlock(plan, iso) {
-  const start = parseDate(plan.blockStart);
-  const cur = parseDate(iso);
-  const diff = Math.floor((cur - start) / 86400000);
+  const diff = Math.round((parseDate(iso) - parseDate(plan.blockStart)) / 86400000);
   if (diff < 0) return { week: 0, status: "before", of: plan.weeks || 8 };
   const week = Math.floor(diff / 7) + 1;
   if (iso > plan.blockEnd) return { week, status: "after", of: plan.weeks || 8 };
@@ -252,7 +243,6 @@ export function resolveDay(plan, dayId, iso, overrides = []) {
     let sets = prescribedSets(ex.sets, ex.superset, phase.setMod);
     let repsMin = ex.repsMin;
     let repsMax = ex.repsMax;
-    let restSec = ex.restSec;
     let name = ex.name;
     let id = ex.id;
     let rir = String(phase.rir ?? "2");
@@ -261,14 +251,13 @@ export function resolveDay(plan, dayId, iso, overrides = []) {
       if (hit.sets != null && hit.sets !== "") sets = Number(hit.sets);
       if (hit.reps_min != null && hit.reps_min !== "") repsMin = Number(hit.reps_min);
       if (hit.reps_max != null && hit.reps_max !== "") repsMax = Number(hit.reps_max);
-      if (hit.rest_sec != null && hit.rest_sec !== "") restSec = Number(hit.rest_sec);
       if (hit.rir != null && hit.rir !== "") rir = String(hit.rir);
       if (hit.replace_with && !isBannedExercise(hit.replace_with)) {
         name = String(hit.replace_with);
         id = slug(name);
       }
     }
-    return { id, name, superset: ex.superset, sets, repsMin, repsMax, restSec, rir };
+    return { id, name, superset: ex.superset, sets, repsMin, repsMax, rir };
   });
   return { day, phase, status, exercises: withSlots(exercises) };
 }
@@ -280,14 +269,8 @@ export function scheduledDayId(plan, iso) {
 }
 
 export function estimateMinutes(exercises) {
-  let sec = 0;
-  for (const ex of exercises) {
-    const sets = Number(ex.sets || ex.targetSets) || 0;
-    sec += sets * 70;
-    sec += sets * (Number(ex.restSec) || 0);
-  }
-  sec += exercises.length * 30;
-  return Math.max(25, Math.round(sec / 60));
+  const sets = exercises.reduce((n, ex) => n + (Number(ex.sets || ex.targetSets) || 0), 0);
+  return Math.max(25, Math.round(sets * 2 + exercises.length));
 }
 
 export function targetLine(ex, suggestedKg) {
@@ -458,7 +441,6 @@ export function createWorkout(plan, priorWorkouts, dayId, iso, overrides = []) {
       targetSets: ex.sets,
       repsMin: ex.repsMin,
       repsMax: ex.repsMax,
-      restSec: ex.restSec || 0,
       rir: ex.rir,
       sets: prefillSets(ex.sets, last ? last.sets : null),
     };
@@ -474,7 +456,6 @@ export function createWorkout(plan, priorWorkouts, dayId, iso, overrides = []) {
     finishedAt: null,
     status: "active",
     logIndex: 0,
-    rest: null,
     exercises,
     prs: [],
     advice: [],
@@ -593,7 +574,6 @@ export function finishWorkout(workout, priorDone) {
     ...workout,
     status: "done",
     finishedAt: new Date().toISOString(),
-    rest: null,
     exercises: (workout.exercises || []).map((e) => ({
       ...e,
       sets: (e.sets || []).map((s) => ({ ...s })),
@@ -639,31 +619,18 @@ export function supersetPartnerIndex(exercises, index) {
 }
 
 export function afterSetAction(exercises, exIndex) {
-  const ex = exercises[exIndex];
   const incomplete = (e) => (e.sets || []).some((s) => !s.completed);
   const partner = supersetPartnerIndex(exercises, exIndex);
   const later = exercises.findIndex((e, i) => i > exIndex && incomplete(e));
   const earlier = exercises.findIndex((e, i) => i < exIndex && incomplete(e));
-  const moreHere = incomplete(ex);
+  const moreHere = incomplete(exercises[exIndex]);
   const partnerOpen = partner != null && incomplete(exercises[partner]);
 
-  if (!ex.restSec) {
-    if (partnerOpen) return { type: "goto", index: partner };
-    if (moreHere) return { type: "stay" };
-    if (later >= 0) return { type: "goto", index: later };
-    if (earlier >= 0) return { type: "goto", index: earlier };
-    return { type: "all-done" };
-  }
-
-  const moreWork = moreHere || partnerOpen || later >= 0 || earlier >= 0;
-  if (!moreWork) return { type: "all-done" };
-
-  let thenIndex = exIndex;
-  if (partnerOpen) thenIndex = partner;
-  else if (moreHere) thenIndex = exIndex;
-  else if (later >= 0) thenIndex = later;
-  else thenIndex = earlier;
-  return { type: "rest", seconds: ex.restSec, thenIndex };
+  if (partnerOpen) return { type: "goto", index: partner };
+  if (moreHere) return { type: "stay" };
+  if (later >= 0) return { type: "goto", index: later };
+  if (earlier >= 0) return { type: "goto", index: earlier };
+  return { type: "all-done" };
 }
 
 export function e1rmSeries(workouts, exerciseName) {

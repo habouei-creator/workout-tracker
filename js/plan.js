@@ -1,7 +1,6 @@
 // Houman's 8-week shred, Nov 2 to Dec 27, 2026.
 // Superset letter is stored on every exercise in that group.
-// A letter used once is a straight set. A letter used twice is a superset:
-// the first move has no rest, the second carries the rest after the pair.
+// A letter used once is a straight set. A letter used twice is a superset.
 // Phase rules add sets only on A moves, or A and B moves. See js/logic.js.
 
 export const SEED_PLAN = {
@@ -107,7 +106,7 @@ export const SEED_PLAN = {
       id: "push-b",
       name: "Push B",
       weekday: "Thursday",
-      focus: "Pump day. Lighter weights, more reps, shorter rest, then core.",
+      focus: "Pump day. Lighter weights, more reps, then core.",
       exercises: [
         ex("machine-chest-press", "Machine chest press", 3, 12, 15, 0, "A"),
         ex("cable-chest-fly", "Cable chest fly", 3, 15, 15, 60, "A"),
@@ -122,7 +121,7 @@ export const SEED_PLAN = {
       id: "pull-b",
       name: "Pull B",
       weekday: "Friday",
-      focus: "Pump day. Same movements in higher rep ranges with tight rest.",
+      focus: "Pump day. Same movements in higher rep ranges.",
       exercises: [
         ex("seated-cable-row", "Seated cable row", 3, 12, 15, 0, "A"),
         ex("lat-pulldown", "Lat pulldown", 3, 12, 15, 60, "A"),
