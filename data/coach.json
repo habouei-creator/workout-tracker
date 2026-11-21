@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "targets": {
+    "kcal_min": 2400,
+    "kcal_max": 2600,
+    "protein_g": 200
+  },
+  "food_days": [],
+  "notes": [
+    {
+      "date": "2026-11-21",
+      "title": "Welcome",
+      "text": "Welcome. Tell me what you ate in chat and I will log the meals here. Weigh in every morning, and measure your waist at the belly button on Sundays. Photos are every other Sunday, starting Nov 29."
+    }
+  ],
+  "exercise_overrides": [],
+  "plan_changes": []
+}
