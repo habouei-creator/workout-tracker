@@ -193,7 +193,7 @@ function home(state) {
   const info = phaseForDate(state.plan, iso);
   const label = phaseLabel(state.plan, iso);
   const avg = trailingAverage(state.weighins, iso, 7);
-  const todayW = (state.weighins || []).find((w) => w.date === iso && w.kg != null && w.kg !== "");
+  const todayW = (state.weighins || []).find((w) => w.date === iso && w.lb != null && w.lb !== "");
   const delta = weekWeightDelta(state.weighins, iso);
   const series = weightSeries(state.weighins, iso);
   const waist = latestWaist(state.weighins, iso);
@@ -232,10 +232,10 @@ function home(state) {
     ${info.status === "before" ? `<div class="banner">The block starts ${esc(formatLong(state.plan.blockStart))}.</div>` : ""}
     ${todayW ? "" : `<button class="prompt" data-action="weigh"><div><b>Morning weigh-in is waiting</b><span>Log it after the bathroom, before food.</span></div><span class="acc">Log it</span></button>`}
     <section class="card" data-action="weigh" role="button" tabindex="0">
-      <div class="row"><span class="lbl">Weight · 7-day avg</span>${delta == null ? "" : `<span class="acc" style="font-size:13px">${esc(formatDelta(delta))} kg this week</span>`}</div>
+      <div class="row"><span class="lbl">Weight · 7-day avg</span>${delta == null ? "" : `<span class="acc" style="font-size:13px">${esc(formatDelta(delta))} lb this week</span>`}</div>
       <div class="row mt8">
-        <b style="font-size:24px">${avg == null ? "No weigh-ins yet" : `${esc(fmt1(avg))} kg`}</b>
-        <span class="sub mt0">${todayW ? `today ${esc(fmt1(todayW.kg))}` : "today not logged"}</span>
+        <b style="font-size:24px">${avg == null ? "No weigh-ins yet" : `${esc(fmt1(avg))} lb`}</b>
+        <span class="sub mt0">${todayW ? `today ${esc(fmt1(todayW.lb))}` : "today not logged"}</span>
       </div>
       ${series.dates.length > 1 ? chart(series.dates, [
         { values: series.raw, color: "#3a4352", width: 2 },
@@ -685,7 +685,7 @@ export function buildCheckin(state) {
   const start = startOfWeekMonday(iso);
   const partial = weekdayName(iso) !== "Sunday";
   const avg = (() => {
-    const vals = (state.weighins || []).filter((x) => x.date >= start && x.date <= iso && x.kg != null).map((x) => Number(x.kg));
+    const vals = (state.weighins || []).filter((x) => x.date >= start && x.date <= iso && x.lb != null).map((x) => Number(x.lb));
     if (!vals.length) return null;
     return vals.reduce((a, b) => a + b, 0) / vals.length;
   })();
@@ -741,7 +741,7 @@ function coach(state) {
   const w = weekOfBlock(state.plan, iso);
   const start = startOfWeekMonday(iso);
   const partial = weekdayName(iso) !== "Sunday";
-  const vals = (state.weighins || []).filter((x) => x.date >= start && x.date <= iso && x.kg != null).map((x) => Number(x.kg));
+  const vals = (state.weighins || []).filter((x) => x.date >= start && x.date <= iso && x.lb != null).map((x) => Number(x.lb));
   const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
   const delta = weekWeightDelta(state.weighins, iso);
   const waist = latestWaist(state.weighins, iso);
@@ -774,7 +774,7 @@ function coach(state) {
     <div class="row"><h1>Weekly check-in</h1></div>
     <section class="card pad-tight">
       ${row("Workouts", `${done} of 6`)}
-      ${row("Average weight", avg == null ? "None yet" : `${fmt1(avg)} kg`, delta == null ? "" : `${formatDelta(delta)} kg`)}
+      ${row("Average weight", avg == null ? "None yet" : `${fmt1(avg)} lb`, delta == null ? "" : `${formatDelta(delta)} lb`)}
       ${row("Waist", waist.current == null ? "None yet" : `${fmt1(waist.current)} cm`, waist.delta == null ? "" : `${formatDelta(waist.delta)} cm`)}
       ${row("Avg calories", food.kcal == null ? "None yet" : fmtInt(food.kcal))}
       ${row("Avg protein", food.protein == null ? "None yet" : `${Math.round(food.protein)} g`)}
@@ -806,11 +806,11 @@ function weigh(state) {
   const iso = state.today;
   const sunday = weekdayName(iso) === "Sunday";
   const draft = state.weigh || { mode: "weight", weight: "", waist: "" };
-  const yday = (state.weighins || []).find((w) => w.date === addDays(iso, -1) && w.kg != null);
+  const yday = (state.weighins || []).find((w) => w.date === addDays(iso, -1) && w.lb != null);
   const avg = trailingAverage(state.weighins, iso, 7);
   const lastWaist = latestWaist(state.weighins, addDays(iso, -1));
   const display = draft.mode === "waist" ? draft.waist || "0" : draft.weight || "0";
-  const unit = draft.mode === "waist" ? "cm" : "kg";
+  const unit = draft.mode === "waist" ? "cm" : "lb";
   return `
     <button class="back" data-action="tab" data-tab="home">‹ Home</button>
     <div class="sub">${esc(formatShort(iso))}</div>
@@ -820,8 +820,8 @@ function weigh(state) {
       <div class="bigwt ${draft.mode === "weight" ? "acc" : "blue"}">${esc(display)}<small>${unit}</small></div>
     </section>
     <div class="gap">
-      <section class="card"><div class="lbl">Yesterday</div><b style="font-size:20px">${yday ? `${esc(fmt1(yday.kg))} kg` : "None"}</b></section>
-      <section class="card"><div class="lbl">7-day avg</div><b style="font-size:20px">${avg == null ? "None" : `${esc(fmt1(avg))} kg`}</b></section>
+      <section class="card"><div class="lbl">Yesterday</div><b style="font-size:20px">${yday ? `${esc(fmt1(yday.lb))} lb` : "None"}</b></section>
+      <section class="card"><div class="lbl">7-day avg</div><b style="font-size:20px">${avg == null ? "None" : `${esc(fmt1(avg))} lb`}</b></section>
     </div>
     ${sunday ? `<button class="card" data-action="focus-waist" style="width:100%;text-align:left"><div class="row"><div><div class="lbl">Waist at belly button</div><div class="sub">Sundays only${lastWaist.current ? ` · last ${esc(fmt1(lastWaist.current))} cm` : ""}</div></div><span class="pill ${draft.mode === "waist" ? "field-hot" : ""}" style="font-size:16px">${draft.waist ? esc(draft.waist) : "--"} cm</span></div></button>` : ""}
     ${state.weighError ? `<div class="err">${esc(state.weighError)}</div>` : ""}

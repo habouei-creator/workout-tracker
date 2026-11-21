@@ -340,7 +340,7 @@ function openWeigh() {
   const row = state.weighins.find((w) => w.date === state.today);
   state.weigh = {
     mode: "weight",
-    weight: row && row.kg != null && row.kg !== "" ? String(row.kg) : "",
+    weight: row && row.lb != null && row.lb !== "" ? String(row.lb) : "",
     waist: row && row.waistCm != null && row.waistCm !== "" ? String(row.waistCm) : "",
   };
   state.weighError = "";
@@ -371,9 +371,9 @@ function padKey(key) {
 }
 
 function saveWeigh() {
-  const kg = Number(state.weigh.weight);
-  if (!kg || kg < 30 || kg > 300) {
-    state.weighError = "Enter a weight between 30 and 300 kg.";
+  const lb = Math.round(Number(state.weigh.weight) * 10) / 10;
+  if (!lb || lb < 70 || lb > 500) {
+    state.weighError = "Enter a weight between 70 and 500 lb.";
     render();
     return;
   }
@@ -389,10 +389,12 @@ function saveWeigh() {
   }
   let row = state.weighins.find((w) => w.date === state.today);
   if (!row) {
-    row = { date: state.today, kg, waistCm };
+    row = { date: state.today, lb, unit: "lb", waistCm };
     state.weighins.push(row);
   } else {
-    row.kg = kg;
+    row.lb = lb;
+    row.unit = "lb";
+    delete row.kg;
     if (waistCm != null) row.waistCm = waistCm;
   }
   state.weighins.sort((a, b) => a.date.localeCompare(b.date));
@@ -569,7 +571,7 @@ async function doImport() {
     }
     if (data.plan && data.plan.days && data.plan.phases) state.plan = data.plan;
     state.workouts = data.workouts;
-    state.weighins = data.weighins;
+    state.weighins = L.migrateWeighIns(data.weighins).weighins;
     state.steps = data.steps && typeof data.steps === "object" ? data.steps : {};
     state.settings = { ...defaultSettings(), ...(data.settings || {}) };
     state.sheet = null;
@@ -1122,10 +1124,11 @@ async function init() {
   state.plan = upgradePlan(storedPlan);
   if (!state.plan.schedule) state.plan.schedule = freshPlan().schedule;
   state.workouts = data.workouts || [];
-  state.weighins = data.weighins || [];
+  const migrated = L.migrateWeighIns(data.weighins || []);
+  state.weighins = migrated.weighins;
   state.steps = data.steps || {};
   state.settings = { ...defaultSettings(), ...(data.settings || {}) };
-  if (!storedPlan || (storedPlan.seedVersion || 1) < state.plan.seedVersion) persist();
+  if (!storedPlan || (storedPlan.seedVersion || 1) < state.plan.seedVersion || migrated.changed) persist();
   await refreshCoach();
   render();
   document.body.addEventListener("click", onClick);

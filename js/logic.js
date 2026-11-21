@@ -322,11 +322,50 @@ export function nextPhotoDate(iso) {
   return d;
 }
 
+export const KG_TO_LB = 2.20462;
+
+export function weighLb(row) {
+  if (!row) return null;
+  if (row.unit === "lb" && row.lb != null && row.lb !== "") return Number(row.lb);
+  if (row.kg != null && row.kg !== "") return Number(row.kg);
+  if (row.lb != null && row.lb !== "") return Number(row.lb);
+  return null;
+}
+
+export function migrateWeighIns(weighins) {
+  let changed = false;
+  const next = (weighins || []).map((row) => {
+    if (!row || typeof row !== "object") return row;
+    if (row.unit === "lb" && row.lb != null && row.lb !== "" && (row.kg == null || row.kg === "")) return row;
+    const kg = row.kg != null && row.kg !== "" ? Number(row.kg) : null;
+    if (kg != null && Number.isFinite(kg) && row.unit !== "lb") {
+      changed = true;
+      return {
+        date: row.date,
+        lb: Math.round(kg * KG_TO_LB * 10) / 10,
+        waistCm: row.waistCm ?? null,
+        unit: "lb",
+      };
+    }
+    if (row.lb != null && row.lb !== "") {
+      changed = row.unit !== "lb" || row.kg != null;
+      return {
+        date: row.date,
+        lb: Math.round(Number(row.lb) * 10) / 10,
+        waistCm: row.waistCm ?? null,
+        unit: "lb",
+      };
+    }
+    return row;
+  });
+  return { weighins: next, changed };
+}
+
 export function trailingAverage(weighins, iso, days = 7) {
   const start = addDays(iso, -(days - 1));
   const vals = (weighins || [])
-    .filter((w) => w.date >= start && w.date <= iso && w.kg != null && w.kg !== "")
-    .map((w) => Number(w.kg));
+    .filter((w) => w.date >= start && w.date <= iso && weighLb(w) != null)
+    .map((w) => weighLb(w));
   return avg(vals);
 }
 
@@ -335,11 +374,11 @@ export function weekWeightDelta(weighins, iso) {
   const prevStart = addDays(thisStart, -7);
   const prevEnd = addDays(thisStart, -1);
   const thisVals = (weighins || [])
-    .filter((w) => w.date >= thisStart && w.date <= iso && w.kg != null)
-    .map((w) => Number(w.kg));
+    .filter((w) => w.date >= thisStart && w.date <= iso && weighLb(w) != null)
+    .map((w) => weighLb(w));
   const prevVals = (weighins || [])
-    .filter((w) => w.date >= prevStart && w.date <= prevEnd && w.kg != null)
-    .map((w) => Number(w.kg));
+    .filter((w) => w.date >= prevStart && w.date <= prevEnd && weighLb(w) != null)
+    .map((w) => weighLb(w));
   if (!thisVals.length || !prevVals.length) return null;
   return avg(thisVals) - avg(prevVals);
 }
@@ -357,10 +396,10 @@ export function latestWaist(weighins, iso) {
 export function weightSeries(weighins, iso, days = 42) {
   const start = addDays(iso, -(days - 1));
   const inRange = (weighins || [])
-    .filter((w) => w.date >= start && w.date <= iso && w.kg != null && w.kg !== "")
+    .filter((w) => w.date >= start && w.date <= iso && weighLb(w) != null)
     .sort((a, b) => a.date.localeCompare(b.date));
   const dates = inRange.map((w) => w.date);
-  const raw = inRange.map((w) => Number(w.kg));
+  const raw = inRange.map((w) => weighLb(w));
   const avgLine = dates.map((d) => trailingAverage(weighins, d, 7));
   return { dates, raw, avg: avgLine };
 }
@@ -788,8 +827,8 @@ export function checkinText(info) {
   lines.push(`Workouts: ${info.workoutsDone}/${info.workoutsGoal}`);
   if (info.weightAvg == null) lines.push("Average weight: none logged");
   else {
-    const delta = info.weightDelta == null ? "" : ` (${formatDelta(info.weightDelta)} kg vs last week)`;
-    lines.push(`Average weight: ${fmt1(info.weightAvg)} kg${delta}`);
+    const delta = info.weightDelta == null ? "" : ` (${formatDelta(info.weightDelta)} lb vs last week)`;
+    lines.push(`Average weight: ${fmt1(info.weightAvg)} lb${delta}`);
   }
   if (info.waist == null) lines.push("Waist: none logged");
   else {

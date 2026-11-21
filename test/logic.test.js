@@ -28,6 +28,7 @@ import {
   weekDots,
   fmtSet,
   mergeHistorySeed,
+  migrateWeighIns,
   deloadTarget,
   moveInList,
 } from "../js/logic.js";
@@ -255,7 +256,7 @@ test("check-in text has no dash characters and includes sessions", () => {
   });
   assert.match(text, /Week 3 check-in \(so far\)/);
   assert.match(text, /Workouts: 1\/6/);
-  assert.match(text, /-0\.6 kg/);
+  assert.match(text, /-0\.6 lb/);
   assert.match(text, /Leg press: 140 x 10/);
   assert.equal(text.includes("\u2014"), false);
   assert.equal(text.includes("\u2013"), false);
@@ -367,6 +368,18 @@ test("Strong history seed merges once and leaves other workouts", () => {
   assert.equal(day.exercises[0].name, "Squat (Machine)");
   assert.equal(day.exercises[0].repsMin, 8);
   assert.equal(day.exercises[0].repsMax, 12);
+});
+
+test("kg weigh-ins convert to lb once", () => {
+  const first = migrateWeighIns([{ date: "2026-11-21", kg: 93.6, waistCm: 97 }]);
+  assert.equal(first.changed, true);
+  assert.equal(first.weighins[0].unit, "lb");
+  assert.equal(first.weighins[0].lb, 206.4);
+  assert.equal(first.weighins[0].kg, undefined);
+  assert.equal(first.weighins[0].waistCm, 97);
+  const second = migrateWeighIns(first.weighins);
+  assert.equal(second.changed, false);
+  assert.equal(second.weighins[0].lb, 206.4);
 });
 
 test("reorder keeps the exercises and can move one to the front", () => {
