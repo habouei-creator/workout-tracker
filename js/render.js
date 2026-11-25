@@ -36,6 +36,7 @@ import {
   fmtInt,
   fmtLoad,
   fmtSet,
+  bestSet,
   formatDelta,
   formatElapsed,
   chartPoints,
@@ -203,7 +204,6 @@ function home(state) {
   const targets = state.coach.targets;
   const foodDay = (state.coach.food_days || []).find((d) => d.date === iso);
   const totals = dayTotals(foodDay);
-  const ont = daysOnTarget(state.coach.food_days, targets, iso);
   const note = latestNote(state.coach.notes, iso);
   const photo = nextPhotoDate(iso);
   const kcalPct = targets.kcal_min ? (totals.kcal / targets.kcal_min) * 100 : 0;
@@ -220,9 +220,13 @@ function home(state) {
 
   return `
     <div class="row">
-      <div class="sub mt0">${esc(formatShort(iso))}</div>
+      <div>
+        <div class="brand">HOUMAN FITNESS</div>
+        <div class="ver">v2.0</div>
+      </div>
       <button class="iconbtn" data-action="settings" aria-label="Settings">${gear()}</button>
     </div>
+    <div class="sub">${esc(formatShort(iso))}</div>
     ${sourceLine(state)}
     <div class="row mt8">
       <h1>Dashboard</h1>
@@ -253,7 +257,7 @@ function home(state) {
         <div class="lbl">Workouts</div>
         <b style="font-size:20px">${done} of 6</b>
         <div class="dots">${dots.map((d) => `<i class="${d.done ? "on" : ""} ${d.active && !d.done ? "now" : ""} ${d.future ? "future" : ""}">${d.label}</i>`).join("")}</div>
-        <div class="sub" style="margin-top:8px">Days on target: ${ont.on} of ${ont.total}</div>
+        <div class="sub" style="margin-top:8px">Days on target: ${done} of 6</div>
       </section>
     </div>
     <section class="card">
@@ -525,6 +529,14 @@ function log(state) {
       <div class="row">
         <button class="link" data-action="prev-ex" ${i === 0 ? "disabled" : ""}>Previous exercise</button>
         <button class="link" data-action="next-ex">Next exercise</button>
+      </div>
+      <div class="exlist" aria-label="Today's exercises">
+        ${w.exercises
+          .map((item, idx) => {
+            const finished = item.sets.length > 0 && item.sets.every((s) => s.completed);
+            return `<button type="button" class="${idx === i ? "on" : ""}" data-action="open-ex" data-i="${idx}"><span>${esc(item.name)}</span>${finished ? `<span class="tick" aria-label="Finished">✓</span>` : `<span class="tick"></span>`}</button>`;
+          })
+          .join("")}
       </div>`,
     action: `<button class="btn" data-action="${action}">${esc(actionLabel)}</button>`,
   };
@@ -706,7 +718,7 @@ export function buildCheckin(state) {
     for (const ex of session.exercises || []) {
       const done = (ex.sets || []).filter((s) => s.completed && s.reps);
       if (!done.length) continue;
-      const best = done.reduce((a, s) => (Number(s.kg) * Number(s.reps) > Number(a.kg) * Number(a.reps) ? s : a));
+      const best = bestSet(done);
       lines.push(`- ${ex.name}: ${done.map((s) => fmtSet(s.kg, s.reps, ex.loadType)).join(", ")} (top ${fmtSet(best.kg, best.reps, ex.loadType)})`);
     }
   }

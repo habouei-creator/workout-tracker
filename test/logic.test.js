@@ -31,6 +31,7 @@ import {
   migrateWeighIns,
   deloadTarget,
   moveInList,
+  bestSet,
 } from "../js/logic.js";
 import { readFileSync } from "node:fs";
 import { buildCheckin } from "../js/render.js";
@@ -140,6 +141,36 @@ test("photo sundays every 14 days from Nov 29", () => {
   assert.equal(nextPhotoDate("2026-12-13"), "2026-12-13");
   assert.equal(nextPhotoDate("2026-12-14"), "2026-12-27");
   assert.equal(nextPhotoDate("2026-12-28"), "2027-01-10");
+});
+
+test("check-in top set is the highest e1rm, not the first set", () => {
+  const sets = [
+    { kg: 10, reps: 12, completed: true },
+    { kg: 20, reps: 3, completed: true },
+  ];
+  assert.equal(e1rm(10, 12), 14);
+  assert.equal(e1rm(20, 3), 22);
+  assert.equal(bestSet(sets).kg, 20);
+  const text = buildCheckin({
+    today: "2026-11-23",
+    plan,
+    weighins: [],
+    settings: { coachNoteDraft: "" },
+    coach: { food_days: [], targets: { kcal_min: 2400, kcal_max: 2600, protein_g: 200 } },
+    workouts: [
+      {
+        id: "w1",
+        status: "done",
+        date: "2026-11-23",
+        dayName: "Push",
+        startedAt: "2026-11-23T06:00:00",
+        finishedAt: "2026-11-23T07:00:00",
+        prs: [],
+        exercises: [{ name: "Chest Fly", sets }],
+      },
+    ],
+  });
+  assert.match(text, /top 20 x 3/);
 });
 
 test("food on target is inclusive", () => {

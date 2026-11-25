@@ -74,11 +74,67 @@ async function persist() {
       pendingSave = false;
       await saveAll(snapshot());
     }
+    scheduleSync();
   } catch (err) {
     console.error(err);
   } finally {
     writing = false;
   }
+}
+
+const SYNC_URL = "https://api.npoint.io/4d29135e499d5d37d4e1";
+let syncTimer = 0;
+let syncNeeded = false;
+
+function coachSnapshot() {
+  return {
+    updatedAt: new Date().toISOString(),
+    workouts: state.workouts || [],
+    weighins: (state.weighins || []).map((row) => ({
+      date: row.date,
+      lb: row.lb != null && row.lb !== "" ? Number(row.lb) : null,
+      unit: "lb",
+      waistCm: row.waistCm != null && row.waistCm !== "" ? Number(row.waistCm) : null,
+    })),
+  };
+}
+
+function scheduleSync() {
+  syncNeeded = true;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(pushSync, 800);
+}
+
+function pushSync() {
+  if (!syncNeeded) return;
+  syncNeeded = false;
+  const body = JSON.stringify(coachSnapshot());
+  fetch(SYNC_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body,
+    keepalive: true,
+  }).then((res) => {
+    if (!res.ok) syncNeeded = true;
+  }).catch(() => {
+    syncNeeded = true;
+  });
+}
+
+function selectLogField(el) {
+  if (!(el instanceof HTMLInputElement)) return;
+  const action = el.dataset.action;
+  if (action !== "set-kg" && action !== "set-reps" && action !== "hist-kg" && action !== "hist-reps") return;
+  const apply = () => {
+    const len = el.value.length;
+    try {
+      el.setSelectionRange(0, len);
+    } catch {
+      /* some input types reject a range */
+    }
+  };
+  setTimeout(apply, 0);
+  setTimeout(apply, 40);
 }
 
 let saveTimer = 0;
@@ -1132,6 +1188,8 @@ async function init() {
   await refreshCoach();
   render();
   document.body.addEventListener("click", onClick);
+  document.body.addEventListener("focusin", (event) => selectLogField(event.target));
+  document.body.addEventListener("click", (event) => selectLogField(event.target));
   document.body.addEventListener("input", onInput);
   document.body.addEventListener("change", onInput);
   document.body.addEventListener("keydown", onKey);
@@ -1145,7 +1203,12 @@ async function init() {
     state.online = false;
     render();
   });
-  window.addEventListener("pagehide", () => persist());
+  window.addEventListener("pagehide", () => {
+    persist();
+    syncNeeded = true;
+    clearTimeout(syncTimer);
+    pushSync();
+  });
   setInterval(tick, 250);
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(() => {});

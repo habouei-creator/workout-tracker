@@ -117,6 +117,12 @@ export function e1rm(kg, reps) {
   return w * (1 + r / 30);
 }
 
+export function bestSet(sets) {
+  const done = (sets || []).filter((s) => s && s.reps);
+  if (!done.length) return null;
+  return done.reduce((best, set) => (e1rm(set.kg, set.reps) > e1rm(best.kg, best.reps) ? set : best));
+}
+
 export function fmtSet(kg, reps, loadType) {
   if (reps == null || reps === "") return "";
   const n = Number(kg);

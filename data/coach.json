@@ -5,7 +5,50 @@
     "kcal_max": 2600,
     "protein_g": 200
   },
-  "food_days": [],
+  "food_days": [
+    {
+      "date": "2026-11-23",
+      "meals": [
+        { "name": "57 Nutrition protein bar", "kcal": 256, "protein_g": 21.5 },
+        { "name": "Whole wheat bread, 1 slice", "kcal": 80, "protein_g": 4 },
+        { "name": "2 eggs", "kcal": 140, "protein_g": 12 },
+        { "name": "Beef jerky, 100 g", "kcal": 380, "protein_g": 40 },
+        { "name": "Guava", "kcal": 70, "protein_g": 2.5 },
+        { "name": "Tofu, 300 g", "kcal": 230, "protein_g": 24 },
+        { "name": "Brown rice, 200 g", "kcal": 225, "protein_g": 5 },
+        { "name": "Milk, 250 ml", "kcal": 110, "protein_g": 12.5 },
+        { "name": "Orgain shake, 2 scoops", "kcal": 150, "protein_g": 21 },
+        { "name": "Half banana", "kcal": 50, "protein_g": 0.5 },
+        { "name": "3 strawberries", "kcal": 10, "protein_g": 0 },
+        { "name": "57 Nutrition protein bar", "kcal": 256, "protein_g": 21.5 }
+      ]
+    },
+    {
+      "date": "2026-11-24",
+      "meals": [
+        { "name": "Protein bar", "kcal": 256, "protein_g": 21.5 },
+        { "name": "Bun thit nuong (45 g pork, 30 g Chinese sausage, small spring roll, noodles, veg)", "kcal": 600, "protein_g": 23 },
+        { "name": "1 egg", "kcal": 70, "protein_g": 6 },
+        { "name": "Chicken thigh stew, 300 g", "kcal": 700, "protein_g": 75 },
+        { "name": "Brown rice, 150 g", "kcal": 170, "protein_g": 4 },
+        { "name": "Veggies, 100 g", "kcal": 30, "protein_g": 2 },
+        { "name": "Protein bar", "kcal": 256, "protein_g": 21.5 },
+        { "name": "Orgain shake", "kcal": 150, "protein_g": 21 },
+        { "name": "Milk, 250 ml", "kcal": 110, "protein_g": 12.5 },
+        { "name": "Banana", "kcal": 105, "protein_g": 1 },
+        { "name": "Dragon fruit", "kcal": 100, "protein_g": 2 }
+      ]
+    },
+    {
+      "date": "2026-11-25",
+      "meals": [
+        { "name": "Protein bar", "kcal": 256, "protein_g": 21.5 },
+        { "name": "2 medium eggs", "kcal": 130, "protein_g": 11 },
+        { "name": "Poke bowl (230 g chicken thigh, brown rice about 200 g, veg, sauce)", "kcal": 830, "protein_g": 64 },
+        { "name": "Persimmon", "kcal": 120, "protein_g": 1 }
+      ]
+    }
+  ],
   "notes": [
     {
       "date": "2026-11-21",
