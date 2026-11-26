@@ -32,6 +32,10 @@ import {
   deloadTarget,
   moveInList,
   bestSet,
+  lastPerformance,
+  adviceForExercise,
+  canonicalName,
+  e1rmSeries,
 } from "../js/logic.js";
 import { readFileSync } from "node:fs";
 import { buildCheckin } from "../js/render.js";
@@ -141,6 +145,49 @@ test("photo sundays every 14 days from Nov 29", () => {
   assert.equal(nextPhotoDate("2026-12-13"), "2026-12-13");
   assert.equal(nextPhotoDate("2026-12-14"), "2026-12-27");
   assert.equal(nextPhotoDate("2026-12-28"), "2027-01-10");
+});
+
+test("cable names reuse old history without band-style loads", () => {
+  const workouts = [
+    {
+      id: "band",
+      status: "done",
+      date: "2026-11-17",
+      dayId: "push",
+      finishedAt: "2026-11-17T07:00:00",
+      exercises: [
+        {
+          name: "Chest Press (Band)",
+          loadType: "added",
+          repsMin: 10,
+          repsMax: 12,
+          targetSets: 3,
+          sets: [
+            { kg: 6, reps: 12, completed: true },
+            { kg: 6, reps: 12, completed: true },
+            { kg: 6, reps: 12, completed: true },
+          ],
+        },
+        {
+          name: "Chest Fly",
+          repsMin: 10,
+          repsMax: 12,
+          targetSets: 3,
+          sets: [{ kg: 6, reps: 12, completed: true }],
+        },
+      ],
+    },
+  ];
+  assert.equal(canonicalName("Chest Fly"), "Chest Fly (Cable)");
+  assert.equal(canonicalName("Chest Press (Band)"), "Chest Press (Cable)");
+  assert.equal(lastPerformance(workouts, "Chest Press (Cable)").best.kg, 6);
+  assert.equal(lastPerformance(workouts, "Chest Fly (Cable)").sets[0].kg, 6);
+  const advice = adviceForExercise(workouts, "push", "Chest Press (Cable)");
+  assert.match(advice.text, /Try 8\.5 kg/);
+  assert.equal(advice.text.includes("+8.5"), false);
+  assert.equal(e1rmSeries(workouts, "Chest Fly (Cable)").length, 1);
+  assert.equal(workouts[0].exercises[0].name, "Chest Press (Band)");
+  assert.equal(workouts[0].exercises[1].name, "Chest Fly");
 });
 
 test("check-in top set is the highest e1rm, not the first set", () => {

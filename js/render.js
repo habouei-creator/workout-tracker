@@ -37,6 +37,8 @@ import {
   fmtLoad,
   fmtSet,
   bestSet,
+  canonicalName,
+  effectiveLoadType,
   formatDelta,
   formatElapsed,
   chartPoints,
@@ -222,7 +224,7 @@ function home(state) {
     <div class="row">
       <div>
         <div class="brand">HOUMAN FITNESS</div>
-        <div class="ver">v2.0</div>
+        <div class="ver">v3.0</div>
       </div>
       <button class="iconbtn" data-action="settings" aria-label="Settings">${gear()}</button>
     </div>
@@ -293,13 +295,13 @@ function liftRow(state, lift) {
   const byId = e1rmSeries(state.workouts, lift.id);
   const merged = mergePoints(series, byId);
   if (!merged.length) {
-    return `<div class="row mt8"><span style="font-size:14px">${esc(lift.name)}</span><span class="muted" style="font-size:13px">No data yet</span></div>`;
+    return `<div class="row mt8"><span style="font-size:14px">${esc(canonicalName(lift.name))}</span><span class="muted" style="font-size:13px">No data yet</span></div>`;
   }
   const last = merged[merged.length - 1];
   const prev = merged.length > 1 ? merged[merged.length - 2] : null;
   const delta = prev ? last.e1rm - prev.e1rm : null;
   const deltaHtml = delta == null ? "" : `<span class="acc"> ${esc(formatDelta(delta, 0))} kg</span>`;
-  return `<div class="row mt8"><span style="font-size:14px">${esc(lift.name)}</span><span style="font-size:13px">${esc(fmtLoad(last.e1rm))} kg${deltaHtml}</span></div>`;
+  return `<div class="row mt8"><span style="font-size:14px">${esc(canonicalName(lift.name))}</span><span style="font-size:13px">${esc(fmtLoad(last.e1rm))} kg${deltaHtml}</span></div>`;
 }
 
 function mergePoints(a, b) {
@@ -340,7 +342,7 @@ function train(state) {
           const done = completedCount(ex);
           return `<div class="exrow" data-index="${i}">
             ${orderControls("workout", active.dayId, i, active.exercises.length)}
-            <button class="ex grow" data-action="open-ex" data-i="${i}"><div><b>${esc(ex.name)}</b><span class="s">${done} of ${ex.sets.length} sets · ${esc(targetLine(ex))}</span></div><span class="last ${done === ex.sets.length ? "acc" : "muted"}">${done === ex.sets.length ? "Done" : "Open"}</span></button>
+            <button class="ex grow" data-action="open-ex" data-i="${i}"><div><b>${esc(canonicalName(ex.name))}</b><span class="s">${done} of ${ex.sets.length} sets · ${esc(targetLine(viewExercise(ex)))}</span>${(state.exerciseNotes || {})[canonicalName(ex.name)] ? `<span class="nextnote">${esc(state.exerciseNotes[canonicalName(ex.name)])}</span>` : ""}</div><span class="last ${done === ex.sets.length ? "acc" : "muted"}">${done === ex.sets.length ? "Done" : "Open"}</span></button>
           </div>`;
         }).join("")}</section>
         ${noteCards(state, active.dayId)}
@@ -389,10 +391,31 @@ function train(state) {
   };
 }
 
-function logSuggestion(state, w, ex) {
-  const last = lastPerformance(state.workouts.filter((item) => item.id !== w.id), ex.name);
-  const line = suggestionLine(state, w.dayId, ex, last);
-  return line ? `<div class="sub">${line}</div>` : "";
+function viewExercise(ex) {
+  return { ...ex, loadType: effectiveLoadType(ex.name, ex.loadType) };
+}
+
+function exerciseMark(state, name) {
+  const key = canonicalName(name);
+  const color = (state.exerciseColors || {})[key] || "";
+  if (state.colorFor === key) {
+    return `<span class="choices">${["green", "yellow", "red"]
+      .map(
+        (c) =>
+          `<button type="button" class="swatch ${c}${color === c ? " on" : ""}" data-action="set-color" data-name="${esc(name)}" data-color="${c}" aria-label="${c}"></button>`
+      )
+      .join("")}</span>`;
+  }
+  return `<button type="button" class="swatch ${color}" data-action="pick-color" data-name="${esc(name)}" aria-label="Set a color"></button>`;
+}
+
+function exerciseNote(state, name) {
+  const key = canonicalName(name);
+  const text = (state.exerciseNotes || {})[key] || "";
+  if (state.editingNote === key) {
+    return `<textarea class="nextnote" data-action="ex-note" data-name="${esc(name)}" rows="2">${esc(text)}</textarea>`;
+  }
+  return `<button type="button" class="nextnote${text ? "" : " empty"}" data-action="edit-note" data-name="${esc(name)}">${text ? esc(text) : "Tap to add a note for next time"}</button>`;
 }
 
 function orderControls(source, dayId, i, count) {
@@ -403,33 +426,23 @@ function orderControls(source, dayId, i, count) {
     </div>`;
 }
 
-function suggestionLine(state, dayId, ex, last) {
-  const phase = phaseForDate(state.plan, state.today).phase;
-  if (phase.setMod === "half") {
-    const kg = last?.sets?.length ? last.sets[last.sets.length - 1].kg : null;
-    const tip = deloadTarget(kg, ex.loadType || last?.exercise?.loadType);
-    return `<span class="s amber">${esc(tip.text)}</span>`;
-  }
-  const advice = adviceForExercise(state.workouts, dayId, ex.name);
-  if (!advice) return "";
-  return `<span class="s ${advice.type === "hold" ? "amber" : "acc"}">${esc(advice.text)}</span>`;
-}
-
 function exercisePreview(state, dayId, ex) {
   const last = lastPerformance(state.workouts, ex.name);
   const phase = phaseForDate(state.plan, state.today).phase;
   const advice = phase.setMod === "half" ? null : adviceForExercise(state.workouts, dayId, ex.name);
+  const shownType = effectiveLoadType(ex.name, ex.loadType || last?.exercise?.loadType);
   const suggested = phase.setMod === "half"
-    ? deloadTarget(last?.sets?.length ? last.sets[last.sets.length - 1].kg : null, ex.loadType || last?.exercise?.loadType).kg
+    ? deloadTarget(last?.sets?.length ? last.sets[last.sets.length - 1].kg : null, shownType).kg
     : advice && advice.type === "up" && advice.kg != null
       ? advice.kg
       : last && last.best && last.best.kg != null && last.best.kg !== ""
         ? Number(last.best.kg)
         : null;
-  const line = targetLine(ex, suggested);
-  const lastTxt = last ? `Last ${fmtSet(last.best.kg, last.best.reps, last.exercise.loadType)}` : "No history";
-  const adviceLine = suggestionLine(state, dayId, ex, last);
-  return `<div class="ex grow"><div><b>${esc(ex.name)}</b><span class="s">${esc(line)}</span>${adviceLine}</div><span class="last ${last ? "acc" : "dim"}">${esc(lastTxt)}</span></div>`;
+  const view = viewExercise(ex);
+  const line = targetLine(view, suggested);
+  const lastType = effectiveLoadType(ex.name, last?.exercise?.loadType || ex.loadType);
+  const lastTxt = last ? `Last ${fmtSet(last.best.kg, last.best.reps, lastType)}` : "No history";
+  return `<div class="ex grow excard"><div class="exbody"><b>${esc(canonicalName(ex.name))}</b><span class="s">${esc(line)}</span>${exerciseNote(state, ex.name)}</div><div class="exside">${exerciseMark(state, ex.name)}<span class="last ${last ? "acc" : "dim"}">${esc(lastTxt)}</span></div></div>`;
 }
 
 function noteCards(state, dayId) {
@@ -479,7 +492,7 @@ function log(state) {
   const rows = ex.sets
     .map((s, si) => {
       const active = si === open;
-      const prev = s.prevReps ? fmtSet(s.prevKg, s.prevReps, ex.loadType) : "-";
+      const prev = s.prevReps ? fmtSet(s.prevKg, s.prevReps, effectiveLoadType(ex.name, ex.loadType)) : "-";
       return `<div class="setrow ${active ? "active" : ""}">
         <span class="setn">${si + 1}</span>
         <span class="prev">${esc(prev)}</span>
@@ -506,9 +519,12 @@ function log(state) {
         <button class="back" data-action="back-today">‹ ${esc(w.dayName)} · ${i + 1} of ${w.exercises.length}</button>
         <span class="pill" id="elapsed">${esc(formatElapsed(Date.now() - new Date(w.startedAt).getTime()))}</span>
       </div>
-      <h1 style="margin-top:10px">${esc(ex.name)}</h1>
-      <div class="sub">Target ${esc(targetLine(ex))}</div>
-      ${logSuggestion(state, w, ex)}
+      <div class="row" style="margin-top:10px">
+        <h1>${esc(canonicalName(ex.name))}</h1>
+        ${exerciseMark(state, ex.name)}
+      </div>
+      <div class="sub">Target ${esc(targetLine(viewExercise(ex)))}</div>
+      ${exerciseNote(state, ex.name)}
       <div class="row mt8">
         <button class="pill" type="button" data-action="nudge" data-source="workout" data-id="${esc(w.dayId)}" data-i="${i}" data-dir="-1" ${i === 0 ? "disabled" : ""}>Move up</button>
         <button class="pill" type="button" data-action="nudge" data-source="workout" data-id="${esc(w.dayId)}" data-i="${i}" data-dir="1" ${i === w.exercises.length - 1 ? "disabled" : ""}>Move down</button>
@@ -534,7 +550,7 @@ function log(state) {
         ${w.exercises
           .map((item, idx) => {
             const finished = item.sets.length > 0 && item.sets.every((s) => s.completed);
-            return `<button type="button" class="${idx === i ? "on" : ""}" data-action="open-ex" data-i="${idx}"><span>${esc(item.name)}</span>${finished ? `<span class="tick" aria-label="Finished">✓</span>` : `<span class="tick"></span>`}</button>`;
+            return `<button type="button" class="${idx === i ? "on" : ""}" data-action="open-ex" data-i="${idx}"><span>${esc(canonicalName(item.name))}</span>${finished ? `<span class="tick" aria-label="Finished">✓</span>` : `<span class="tick"></span>`}</button>`;
           })
           .join("")}
       </div>`,
@@ -560,17 +576,18 @@ function summary(state) {
     </div>
     <section class="card">
       <div class="lbl">Personal records</div>
-      ${prs.length ? prs.map((p) => `<div class="ex"><b>${esc(p.name)}</b><span class="acc">${esc(fmtSet(p.kg, p.reps, p.loadType))} 🏆</span></div>`).join("") : `<p class="sub">No new PRs this time. Your bests update once you beat a previous estimated 1RM.</p>`}
+      ${prs.length ? prs.map((p) => `<div class="ex"><b>${esc(canonicalName(p.name))}</b><span class="acc">${esc(fmtSet(p.kg, p.reps, effectiveLoadType(p.name, p.loadType)))} 🏆</span></div>`).join("") : `<p class="sub">No new PRs this time. Your bests update once you beat a previous estimated 1RM.</p>`}
     </section>
     <section class="card">
       <div class="lbl">Next time</div>
-      ${advice.length ? advice.map((a) => `<div class="ex"><span>${esc(a.name)}</span><span class="${a.type === "hold" ? "amber" : "acc"}" style="font-size:13px;text-align:right">${esc(a.text)}</span></div>`).join("") : `<p class="sub">Keep the same loads. Move up 2.5 kg when every set hits the top of the rep range.</p>`}
+      ${advice.length ? advice.map((a) => `<div class="ex"><span>${esc(canonicalName(a.name))}</span><span class="${a.type === "hold" ? "amber" : "acc"}" style="font-size:13px;text-align:right">${esc(a.text)}</span></div>`).join("") : `<p class="sub">Keep the same loads. Move up 2.5 kg when every set hits the top of the rep range.</p>`}
     </section>
     <section class="card pad-tight">${(w.exercises || [])
       .map((ex) => {
         const done = (ex.sets || []).filter((s) => s.completed && s.reps);
         if (!done.length) return "";
-        return `<div class="ex"><div><b>${esc(ex.name)}</b><span class="s">${esc(done.map((s) => fmtSet(s.kg, s.reps, ex.loadType)).join(", "))}</span></div></div>`;
+        const type = effectiveLoadType(ex.name, ex.loadType);
+        return `<div class="ex"><div><b>${esc(canonicalName(ex.name))}</b><span class="s">${esc(done.map((s) => fmtSet(s.kg, s.reps, type)).join(", "))}</span></div></div>`;
       })
       .join("")}</section>
     <button class="btn mt16" data-action="train-tab" data-tab="today">Done</button>`;
@@ -590,7 +607,7 @@ function progress(state) {
     <div class="row"><h1>Progress</h1><button class="iconbtn" data-action="settings" aria-label="Settings">${gear()}</button></div>
     ${subnav("progress")}
     <div class="chips">${catalog
-      .map((e) => `<button class="pill ${e.id === id ? "on" : ""}" data-action="pick-progress" data-id="${esc(e.id)}">${esc(e.name)}</button>`)
+      .map((e) => `<button class="pill ${e.id === id ? "on" : ""}" data-action="pick-progress" data-id="${esc(e.id)}">${esc(canonicalName(e.name))}</button>`)
       .join("")}</div>
     <section class="card">
       <div class="row"><b>${esc(name || "Lift")} · est. 1RM</b>${delta == null ? "" : `<span class="acc" style="font-size:13px">${esc(formatDelta(delta, 0))} kg</span>`}</div>
@@ -635,7 +652,7 @@ function detail(state) {
           <button class="check ${s.completed ? "on" : ""}" data-action="hist-toggle" data-id="${esc(w.id)}" data-i="${i}" data-s="${si}">${s.completed ? "✓" : ""}</button>
         </div>`)
         .join("");
-      return `<section class="card"><b>${esc(ex.name)}</b><div class="sub">${esc(repLabel(ex.repsMin, ex.repsMax))} · RIR ${esc(ex.rir)}</div>${sets}</section>`;
+      return `<section class="card"><b>${esc(canonicalName(ex.name))}</b><div class="sub">${esc(repLabel(ex.repsMin, ex.repsMax))} · RIR ${esc(ex.rir)}</div>${sets}</section>`;
     })
     .join("");
   return `
@@ -719,7 +736,8 @@ export function buildCheckin(state) {
       const done = (ex.sets || []).filter((s) => s.completed && s.reps);
       if (!done.length) continue;
       const best = bestSet(done);
-      lines.push(`- ${ex.name}: ${done.map((s) => fmtSet(s.kg, s.reps, ex.loadType)).join(", ")} (top ${fmtSet(best.kg, best.reps, ex.loadType)})`);
+      const type = effectiveLoadType(ex.name, ex.loadType);
+      lines.push(`- ${canonicalName(ex.name)}: ${done.map((s) => fmtSet(s.kg, s.reps, type)).join(", ")} (top ${fmtSet(best.kg, best.reps, type)})`);
     }
   }
   return checkinText({

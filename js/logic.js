@@ -74,6 +74,26 @@ export function norm(s) {
   return String(s || "").trim().toLowerCase();
 }
 
+const NAME_ALIASES = {
+  "chest fly": "Chest Fly (Cable)",
+  "chest fly (cable)": "Chest Fly (Cable)",
+  "chest press (band)": "Chest Press (Cable)",
+  "chest press (cable)": "Chest Press (Cable)",
+};
+
+export function canonicalName(name) {
+  return NAME_ALIASES[norm(name)] || name;
+}
+
+export function namesMatch(a, b) {
+  return norm(canonicalName(a)) === norm(canonicalName(b));
+}
+
+export function effectiveLoadType(name, loadType) {
+  if (namesMatch(name, "Chest Press (Cable)")) return null;
+  return loadType || null;
+}
+
 export function num(v, fallback) {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
@@ -482,7 +502,7 @@ export function lastPerformance(workouts, exerciseName, exceptId) {
     })
     .map(({ w }) => w);
   for (const w of list) {
-    const ex = (w.exercises || []).find((e) => norm(e.name) === norm(exerciseName));
+    const ex = (w.exercises || []).find((e) => namesMatch(e.name, exerciseName));
     if (!ex) continue;
     const sets = (ex.sets || []).filter((s) => s.completed && s.reps);
     if (!sets.length) continue;
@@ -549,7 +569,7 @@ export function sessionResult(exercise) {
   const miss = !allDone || done.some((s) => Number(s.reps) < Number(exercise.repsMin));
   const weights = done.map((s) => Number(s.kg) || 0);
   const minWeight = weights.length ? Math.min(...weights) : 0;
-  const loadType = exercise.loadType || (done.some((s) => Number(s.kg) < 0) ? "assisted" : null);
+  const loadType = effectiveLoadType(exercise.name, exercise.loadType || (done.some((s) => Number(s.kg) < 0) ? "assisted" : null));
   return { hitTop, miss, minWeight, doneCount: done.length, loadType };
 }
 
@@ -563,7 +583,7 @@ export function historyResults(workouts, dayId, exerciseName) {
     })
     .flatMap(({ w }) =>
       (w.exercises || [])
-        .filter((e) => norm(e.name) === norm(exerciseName))
+        .filter((e) => namesMatch(e.name, exerciseName))
         .map((e) => ({ ...sessionResult(e), date: w.date, id: w.id }))
     );
 }
@@ -638,7 +658,7 @@ export function detectPRs(workout, previousWorkouts) {
     for (const w of previousWorkouts || []) {
       if (w.status !== "done") continue;
       for (const pex of w.exercises || []) {
-        if (norm(pex.name) !== norm(ex.name)) continue;
+        if (!namesMatch(pex.name, ex.name)) continue;
         for (const s of pex.sets || []) {
           if (!s.completed || !Number(s.kg) || !Number(s.reps)) continue;
           prevBest = Math.max(prevBest, e1rm(s.kg, s.reps));
@@ -743,7 +763,7 @@ export function e1rmSeries(workouts, exerciseName) {
     let best = 0;
     let bestSet = null;
     for (const ex of w.exercises || []) {
-      if (norm(ex.name) !== norm(exerciseName) && ex.exerciseId !== exerciseName) continue;
+      if (!namesMatch(ex.name, exerciseName) && ex.exerciseId !== exerciseName) continue;
       for (const s of ex.sets || []) {
         if (!s.completed || !Number(s.reps) || !Number(s.kg)) continue;
         const e = e1rm(s.kg, s.reps);
@@ -771,7 +791,7 @@ export function bestLifts(workouts) {
   for (const w of workouts || []) {
     if (w.status !== "done") continue;
     for (const ex of w.exercises || []) {
-      const key = norm(ex.name);
+      const key = norm(canonicalName(ex.name));
       let saw = false;
       for (const s of ex.sets || []) {
         if (!s.completed || !Number(s.reps) || !Number(s.kg)) continue;
@@ -780,13 +800,13 @@ export function bestLifts(workouts) {
         const cur = map.get(key);
         if (!cur || e > cur.e1rm + 0.05) {
           map.set(key, {
-            name: ex.name,
+            name: canonicalName(ex.name),
             kg: Number(s.kg),
             reps: Number(s.reps),
             e1rm: e,
             date: w.date,
             improved: !!cur,
-            loadType: ex.loadType || (Number(s.kg) < 0 ? "assisted" : null),
+            loadType: effectiveLoadType(ex.name, ex.loadType || (Number(s.kg) < 0 ? "assisted" : null)),
           });
         }
       }

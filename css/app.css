@@ -46,6 +46,7 @@ img { max-width: 100%; }
   height: calc(100% - 58px - var(--safe-bot));
   overflow-y: auto;
   overflow-x: hidden;
+  overflow-anchor: none;
   padding: calc(12px + var(--safe-top)) 18px 28px;
   -webkit-overflow-scrolling: touch;
 }
@@ -180,7 +181,25 @@ h2 { font-size: 15px; font-weight: 700; }
 }
 .nudges button:disabled { opacity: 0.35; }
 .ex:last-child { border-bottom: 0; }
+.exbody { flex: 1; min-width: 0; }
+.exside { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: none; }
 .ex b { font-size: 15px; font-weight: 700; }
+.nextnote {
+  display: block; width: 100%; text-align: left; color: var(--lime);
+  background: transparent; border: 0; padding: 3px 0 0; font-size: 13px; font-weight: 650; line-height: 1.35;
+}
+.nextnote.empty { opacity: 0.8; }
+textarea.nextnote { font-size: 16px; min-height: 44px; resize: none; border-radius: 0; }
+.swatch {
+  width: 16px; height: 16px; border-radius: 3px; flex: none;
+  border: 1px solid #3a4352; background: transparent; padding: 0;
+}
+.swatch.green { background: var(--lime); border-color: var(--lime); }
+.swatch.yellow { background: var(--amber); border-color: var(--amber); }
+.swatch.red { background: #ff5d5d; border-color: #ff5d5d; }
+.swatch.on { box-shadow: 0 0 0 2px var(--text); }
+.choices { display: flex; gap: 6px; }
+.setrow input { scroll-margin: 0; }
 .ex .s { color: var(--muted); font-size: 12px; display: block; margin-top: 2px; }
 .ex .last { font-size: 12px; text-align: right; white-space: nowrap; }
 .ex.hit { background: transparent; }

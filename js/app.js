@@ -28,6 +28,10 @@ const state = {
   planDayId: null,
   online: true,
   forceScrollTop: false,
+  exerciseNotes: {},
+  exerciseColors: {},
+  editingNote: null,
+  colorFor: null,
 };
 
 let lastScreen = "";
@@ -96,6 +100,8 @@ function coachSnapshot() {
       unit: "lb",
       waistCm: row.waistCm != null && row.waistCm !== "" ? Number(row.waistCm) : null,
     })),
+    notes: state.exerciseNotes || {},
+    colors: state.exerciseColors || {},
   };
 }
 
@@ -121,10 +127,84 @@ function pushSync() {
   });
 }
 
-function selectLogField(el) {
-  if (!(el instanceof HTMLInputElement)) return;
+const NOTES_KEY = "wt-ex-notes";
+const COLORS_KEY = "wt-ex-colors";
+
+function readJsonMap(key) {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) || "{}");
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeJsonMap(key, map) {
+  try {
+    localStorage.setItem(key, JSON.stringify(map));
+  } catch {
+    /* private mode */
+  }
+}
+
+function captureScroll() {
+  const sc = document.getElementById("scroll");
+  return {
+    box: sc ? sc.scrollTop : 0,
+    win: window.scrollY || 0,
+  };
+}
+
+function applyScroll(pos) {
+  if (!pos) return;
+  const sc = document.getElementById("scroll");
+  if (sc) sc.scrollTop = pos.box;
+  if ((window.scrollY || 0) !== pos.win) window.scrollTo(0, pos.win);
+}
+
+let scrollPin = null;
+let scrollPinUntil = 0;
+let scrollPinFrame = 0;
+
+function holdScroll(pos) {
+  applyScroll(pos);
+  requestAnimationFrame(() => applyScroll(pos));
+  setTimeout(() => applyScroll(pos), 0);
+  setTimeout(() => applyScroll(pos), 60);
+}
+
+function pinScroll(ms = 500, recapture = false) {
+  if (recapture || !scrollPin || Date.now() > scrollPinUntil) scrollPin = captureScroll();
+  scrollPinUntil = Date.now() + ms;
+  holdScroll(scrollPin);
+  if (!scrollPinFrame) {
+    const step = () => {
+      if (!scrollPin || Date.now() > scrollPinUntil) {
+        scrollPinFrame = 0;
+        return;
+      }
+      applyScroll(scrollPin);
+      scrollPinFrame = requestAnimationFrame(step);
+    };
+    scrollPinFrame = requestAnimationFrame(step);
+  }
+}
+
+function keepPinnedScroll(event) {
+  if (!scrollPin || Date.now() > scrollPinUntil) return;
+  const sc = document.getElementById("scroll");
+  if (event.target === sc && sc.scrollTop !== scrollPin.box) sc.scrollTop = scrollPin.box;
+  if (event.target === document && (window.scrollY || 0) !== scrollPin.win) window.scrollTo(0, scrollPin.win);
+}
+
+function isSetField(el) {
+  if (!(el instanceof HTMLInputElement)) return false;
   const action = el.dataset.action;
-  if (action !== "set-kg" && action !== "set-reps" && action !== "hist-kg" && action !== "hist-reps") return;
+  return action === "set-kg" || action === "set-reps" || action === "hist-kg" || action === "hist-reps";
+}
+
+function selectLogField(el) {
+  if (!isSetField(el)) return;
   const apply = () => {
     const len = el.value.length;
     try {
@@ -132,9 +212,31 @@ function selectLogField(el) {
     } catch {
       /* some input types reject a range */
     }
+    pinScroll();
   };
   setTimeout(apply, 0);
   setTimeout(apply, 40);
+}
+
+function saveExerciseNote(name, value, trim) {
+  const key = L.canonicalName(name);
+  const notes = { ...(state.exerciseNotes || {}) };
+  const text = trim ? String(value || "").trim() : String(value || "");
+  if (text) notes[key] = text;
+  else delete notes[key];
+  state.exerciseNotes = notes;
+  writeJsonMap(NOTES_KEY, notes);
+  scheduleSync();
+}
+
+function saveExerciseColor(name, color) {
+  const key = L.canonicalName(name);
+  const colors = { ...(state.exerciseColors || {}) };
+  if (color) colors[key] = color;
+  else delete colors[key];
+  state.exerciseColors = colors;
+  writeJsonMap(COLORS_KEY, colors);
+  scheduleSync();
 }
 
 let saveTimer = 0;
@@ -144,14 +246,12 @@ function saveSoon() {
 }
 
 function render() {
-  const sc = document.getElementById("scroll");
   const keep = state.screen === lastScreen && !state.forceScrollTop;
-  const top = keep && sc ? sc.scrollTop : 0;
+  const pos = keep ? captureScroll() : { box: 0, win: 0 };
   state.forceScrollTop = false;
   lastScreen = state.screen;
   document.getElementById("app").innerHTML = renderApp(state);
-  const next = document.getElementById("scroll");
-  if (next) next.scrollTop = top;
+  holdScroll(pos);
 }
 
 function toast(message) {
@@ -687,6 +787,13 @@ function onInput(event) {
   if (el.dataset.action === "set-kg" || el.dataset.action === "set-reps") {
     writeSet(el, el.dataset.action === "set-kg");
     saveSoon();
+    pinScroll();
+    return;
+  }
+  if (el.dataset.action === "ex-note") {
+    saveExerciseNote(el.dataset.name, el.value, false);
+    pinScroll();
+    return;
   }
   if (el.dataset.action === "hist-kg" || el.dataset.action === "hist-reps") {
     const w = state.workouts.find((x) => x.id === el.dataset.id);
@@ -714,6 +821,37 @@ function onKey(event) {
 
 function handle(action, el) {
   const w = activeWorkout();
+  if (action === "set-kg" || action === "set-reps" || action === "hist-kg" || action === "hist-reps" || action === "ex-note") return;
+  if (action === "edit-note") {
+    state.editingNote = L.canonicalName(el.dataset.name || "");
+    state.colorFor = null;
+    const pos = captureScroll();
+    render();
+    const ta = document.querySelector("textarea[data-action='ex-note']");
+    if (ta) {
+      ta.focus({ preventScroll: true });
+      const len = ta.value.length;
+      try { ta.setSelectionRange(len, len); } catch { /* ignore */ }
+    }
+    holdScroll(pos);
+    return;
+  }
+  if (action === "pick-color") {
+    const key = L.canonicalName(el.dataset.name || "");
+    state.colorFor = state.colorFor === key ? null : key;
+    const pos = captureScroll();
+    render();
+    holdScroll(pos);
+    return;
+  }
+  if (action === "set-color") {
+    saveExerciseColor(el.dataset.name || "", el.dataset.color || "");
+    state.colorFor = null;
+    const pos = captureScroll();
+    render();
+    holdScroll(pos);
+    return;
+  }
   if (action === "tab") return goTab(el.dataset.tab);
   if (action === "train-tab") {
     const tab = el.dataset.tab;
@@ -1184,12 +1322,47 @@ async function init() {
   state.weighins = migrated.weighins;
   state.steps = data.steps || {};
   state.settings = { ...defaultSettings(), ...(data.settings || {}) };
+  state.exerciseNotes = readJsonMap(NOTES_KEY);
+  state.exerciseColors = readJsonMap(COLORS_KEY);
   if (!storedPlan || (storedPlan.seedVersion || 1) < state.plan.seedVersion || migrated.changed) persist();
   await refreshCoach();
   render();
+  document.addEventListener("scroll", keepPinnedScroll, true);
+  document.body.addEventListener("pointerdown", (event) => {
+    const el = event.target;
+    if (isSetField(el) || (el instanceof HTMLTextAreaElement && el.dataset.action === "ex-note")) pinScroll(800, true);
+  }, true);
   document.body.addEventListener("click", onClick);
-  document.body.addEventListener("focusin", (event) => selectLogField(event.target));
-  document.body.addEventListener("click", (event) => selectLogField(event.target));
+  document.body.addEventListener("focusin", (event) => {
+    const el = event.target;
+    if (isSetField(el)) {
+      pinScroll();
+      selectLogField(el);
+      return;
+    }
+    if (el instanceof HTMLTextAreaElement && el.dataset.action === "ex-note") pinScroll();
+  });
+  document.body.addEventListener("click", (event) => {
+    if (!isSetField(event.target)) return;
+    const pos = captureScroll();
+    selectLogField(event.target);
+    holdScroll(pos);
+  });
+  document.body.addEventListener("focusout", (event) => {
+    const el = event.target;
+    if (!(el instanceof HTMLTextAreaElement) || el.dataset.action !== "ex-note") return;
+    saveExerciseNote(el.dataset.name, el.value, true);
+    const key = L.canonicalName(el.dataset.name || "");
+    setTimeout(() => {
+      if (state.editingNote !== key) return;
+      const active = document.activeElement;
+      if (active instanceof HTMLTextAreaElement && active.dataset.action === "ex-note") return;
+      state.editingNote = null;
+      const pos = captureScroll();
+      render();
+      holdScroll(pos);
+    }, 180);
+  });
   document.body.addEventListener("input", onInput);
   document.body.addEventListener("change", onInput);
   document.body.addEventListener("keydown", onKey);
