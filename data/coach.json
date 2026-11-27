@@ -51,6 +51,30 @@
         { "name": "Ultra-filtered milk, 250 ml", "kcal": 110, "protein_g": 12.5 },
         { "name": "2x Vinamilk Greek-style yogurt, 100 g", "kcal": 200, "protein_g": 10 }
       ]
+    },
+    {
+      "date": "2026-11-26",
+      "meals": [
+        { "name": "2 eggs", "kcal": 140, "protein_g": 12 },
+        { "name": "Small slice whole wheat bread", "kcal": 70, "protein_g": 3 },
+        { "name": "2 protein bars", "kcal": 512, "protein_g": 43 },
+        { "name": "Abgoosht, 1 bowl (est)", "kcal": 550, "protein_g": 30 },
+        { "name": "Banh mi bread", "kcal": 250, "protein_g": 8 },
+        { "name": "Orgain shake and 250 ml milk", "kcal": 260, "protein_g": 33.5 },
+        { "name": "Banana and 3 strawberries", "kcal": 120, "protein_g": 1 },
+        { "name": "3 small watermelon slices and guava", "kcal": 160, "protein_g": 4.5 }
+      ]
+    },
+    {
+      "date": "2026-11-27",
+      "meals": [
+        { "name": "2 eggs", "kcal": 140, "protein_g": 12 },
+        { "name": "Banh mi bread", "kcal": 250, "protein_g": 8 },
+        { "name": "Small brown rice", "kcal": 165, "protein_g": 3.5 },
+        { "name": "100 g chicken thigh and raw salmon", "kcal": 180, "protein_g": 21 },
+        { "name": "130 g bone-in chicken thigh", "kcal": 200, "protein_g": 23 },
+        { "name": "Choco Pie", "kcal": 140, "protein_g": 1.5 }
+      ]
     }
   ],
   "notes": [
